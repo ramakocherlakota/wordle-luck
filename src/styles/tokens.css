@@ -1,0 +1,95 @@
+/*
+ * Design tokens for wordle-pal-2.0: color, spacing, and type scales as CSS
+ * custom properties. Light by default; dark via prefers-color-scheme.
+ * Score colors are ported from the legacy app (ColoredScore.js).
+ */
+
+:root {
+  /* Score pattern colors (shared across themes for familiarity) */
+  --score-correct: rgb(242, 111, 59); /* b — correct letter & position (orange) */
+  --score-present: rgb(122, 184, 245); /* w — present, wrong position (blue) */
+  --score-absent: rgb(109, 113, 115); /* - — absent (grey) */
+  --score-text: rgb(255, 255, 255);
+
+  /* Spacing scale */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.5rem;
+  --space-6: 2rem;
+  --space-8: 3rem;
+
+  /* Type scale */
+  --font-sans:
+    ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica,
+    Arial, sans-serif;
+  --font-mono:
+    ui-monospace, 'SF Mono', 'Cascadia Code', Menlo, Consolas, monospace;
+  --text-sm: 0.875rem;
+  --text-base: 1rem;
+  --text-lg: 1.25rem;
+  --text-xl: 1.75rem;
+  --text-2xl: 2.25rem;
+
+  --radius: 8px;
+  --radius-sm: 5px;
+
+  /* Light theme surface/text colors */
+  --bg: rgb(250, 250, 249);
+  --surface: rgb(255, 255, 255);
+  --surface-2: rgb(243, 243, 241);
+  --border: rgb(214, 214, 210);
+  --text: rgb(28, 30, 33);
+  --text-muted: rgb(96, 100, 104);
+  --accent: rgb(38, 112, 214);
+  --accent-text: rgb(255, 255, 255);
+  --danger: rgb(197, 48, 48);
+  --danger-bg: rgb(253, 236, 234);
+  --focus-ring: rgb(38, 112, 214);
+  --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
+  --overlay: rgba(0, 0, 0, 0.45);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: rgb(18, 20, 23);
+    --surface: rgb(30, 33, 37);
+    --surface-2: rgb(38, 42, 47);
+    --border: rgb(58, 63, 69);
+    --text: rgb(233, 235, 238);
+    --text-muted: rgb(157, 163, 170);
+    --accent: rgb(90, 156, 248);
+    --accent-text: rgb(12, 16, 22);
+    --danger: rgb(248, 143, 137);
+    --danger-bg: rgb(58, 32, 32);
+    --focus-ring: rgb(122, 184, 245);
+    --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
+    --overlay: rgba(0, 0, 0, 0.6);
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: var(--text-base);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+:focus-visible {
+  outline: 3px solid var(--focus-ring);
+  outline-offset: 2px;
+}
