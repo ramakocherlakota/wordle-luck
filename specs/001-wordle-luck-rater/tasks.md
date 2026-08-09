@@ -8,7 +8,7 @@ description: "Task list for Wordle Luck (wordle-pal-2.0)"
 
 **Prerequisites**: plan.md, spec.md, research.md, data-model.md, contracts/wordle-svc.md, quickstart.md
 
-**Tests**: INCLUDED — the spec requires "adequate unit test coverage" (app.md #2) and SC-009 mandates automated tests for the rating flow, union guess set, luck truncation, and error handling.
+**Tests**: INCLUDED — the spec requires "adequate unit test coverage" (app.md #2) and SC-009 mandates automated tests for the rating flow, union guess set, luck rounding, and error handling.
 
 **Organization**: Tasks are grouped by user story so each story is an independently implementable, testable increment.
 
@@ -45,7 +45,7 @@ description: "Task list for Wordle Luck (wordle-pal-2.0)"
 - [X] T010 [P] Create `src/styles/tokens.css` (design tokens: score colors `b`=orange `rgb(242,111,59)`, `w`=blue `rgb(122,184,245)`, `-`=grey `rgb(109,113,115)`, plus spacing/type; light/dark via `prefers-color-scheme`) and import it in `src/main.tsx`
 - [X] T011 Implement `src/api/wordleService.ts`: a `postJson` helper (`fetch` + `AbortController`, 900s timeout) with error normalization, plus `rateSolution(target, guesses)` and `remainingAnswers(guesses, scores)` — both send `sequence:false`, `hard_mode:false`, `sqlite_dbname:"all-wordle.sqlite"`; map `by_target[target]` → `GuessRating[]` and `response[0]` → remaining words (contracts/wordle-svc.md) (depends on T009)
 - [X] T012 [P] Create MSW handlers `src/test/mswHandlers.ts` reproducing both operations: `rate_solution` (≥2 rows incl. a solved final row), `remaining_answers` (happy + solved→`[[target]]`), an HTTP-500 traceback, a 200-with-`error` body, and a delayed/slow variant (depends on T009)
-- [X] T013 API client tests `src/api/wordleService.test.ts`: `rateSolution` maps rows + truncatable luck; `remainingAnswers` reads `[0]`; 500 traceback and 200-`error` both normalize to a human-readable error; network/timeout/abort rejects cleanly (depends on T011, T012)
+- [X] T013 API client tests `src/api/wordleService.test.ts`: `rateSolution` maps rows + rounded luck; `remainingAnswers` reads `[0]`; 500 traceback and 200-`error` both normalize to a human-readable error; network/timeout/abort rejects cleanly (depends on T011, T012)
 
 **Checkpoint**: Data, types, styling, backend client, and mocks ready — user stories can begin.
 
@@ -53,7 +53,7 @@ description: "Task list for Wordle Luck (wordle-pal-2.0)"
 
 ## Phase 3: User Story 1 - Rate the luck of a completed Wordle game (Priority: P1) 🎯 MVP
 
-**Goal**: User picks a target and guesses, submits, and sees a `GUESS | SCORE | LUCK | REMAINING` table (luck truncated to 3 decimals) with clear waiting feedback during the backend call.
+**Goal**: User picks a target and guesses, submits, and sees a `GUESS | SCORE | LUCK | REMAINING` table (luck rounded to 2 decimals) with clear waiting feedback during the backend call.
 
 **Independent Test**: Select target `crane`, enter guesses `soare`/`clint`/`crane`, Submit → loading+elapsed indicator → results table with one row per rated guess showing guess, colored score, luck to 3 decimals, and a REMAINING cell.
 
@@ -61,7 +61,7 @@ description: "Task list for Wordle Luck (wordle-pal-2.0)"
 
 - [X] T014 [P] [US1] `src/hooks/useLuckRating.test.ts`: `idle→loading→success`; error paths (500, 200-error, network); elapsed-time ticking; aborts in-flight request on resubmit/unmount (uses MSW) (depends on T012)
 - [X] T015 [P] [US1] `src/components/WordSelect/WordSelect.test.tsx`: typing filters options by prefix; keyboard navigation selects; a value not in the provided options cannot be committed
-- [X] T016 [P] [US1] `src/App.test.tsx` (US1 slice): Submit is disabled until a target and ≥1 guess exist (FR-006); Submit shows a loading + elapsed indicator (FR-008/SC-004); on success renders GUESS/SCORE/LUCK columns with luck **truncated toward zero** to exactly 3 decimals — asserting `0.5316 → "0.531"` and `-0.5316 → "-0.531"` (truncated, not rounded) (SC-002/SC-003); on a backend error the banner shows a message and a Retry action that re-submits (FR-014/SC-007) (uses MSW; depends on T012)
+- [X] T016 [P] [US1] `src/App.test.tsx` (US1 slice): Submit is disabled until a target and ≥1 guess exist (FR-006); Submit shows a loading + elapsed indicator (FR-008/SC-004); on success renders GUESS/SCORE/LUCK columns with luck **rounded** to exactly 2 decimals — asserting `0.5316 → "0.53"` and `-0.5316 → "-0.53"` (SC-002/SC-003); on a backend error the banner shows a message and a Retry action that re-submits (FR-014/SC-007) (uses MSW; depends on T012)
 
 ### Implementation for User Story 1
 
@@ -70,7 +70,7 @@ description: "Task list for Wordle Luck (wordle-pal-2.0)"
 - [X] T019 [US1] Implement `src/hooks/useLuckRating.ts`: submit lifecycle, elapsed timer, `AbortController`, parsed `GuessRating[]`, and human-readable error mapping (depends on T011)
 - [X] T020 [US1] Implement `src/components/GuessInputs/GuessInputs.tsx`: render six guess slots using `WordSelect` (fixed count for US1; dynamic add comes in US3) (depends on T017)
 - [X] T021 [US1] Implement `src/components/SubmitBar/SubmitBar.tsx`: Submit button (enabled only when target + ≥1 guess) and loading spinner with elapsed seconds (depends on T010)
-- [X] T022 [US1] Implement `src/components/ResultsTable/ResultsTable.tsx`: columns GUESS | SCORE (`ScorePattern`) | LUCK (truncated **toward zero** to 3 decimals via `Math.trunc(luck * 1000) / 1000`, rendered with sign and exactly 3 decimal places — NOT `toFixed` rounding) | REMAINING (per-row count + a button placeholder to be wired in US2) (depends on T018)
+- [X] T022 [US1] Implement `src/components/ResultsTable/ResultsTable.tsx`: columns GUESS | SCORE (`ScorePattern`) | LUCK (rounded to 2 decimals, matching legacy Wordle Pal's `toFixed(2)`) | REMAINING (per-row count + a button placeholder to be wired in US2) (depends on T018)
 - [X] T023 [US1] Wire `src/App.tsx`: target `WordSelect` (over `answerList`) + `GuessInputs` + `SubmitBar` + `ResultsTable` driven by `useLuckRating`; render idle/loading/error/success states and a human-readable error banner with an explicit **Retry** action that re-invokes the last submit (FR-014) (depends on T017, T019, T020, T021, T022)
 
 **Checkpoint**: MVP — a full game can be rated and displayed end-to-end.

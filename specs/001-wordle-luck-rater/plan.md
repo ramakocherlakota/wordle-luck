@@ -40,7 +40,7 @@ The project constitution (`.specify/memory/constitution.md`) is still the unfill
 
 | Gate (best-practice default) | Status | Notes |
 |------------------------------|--------|-------|
-| Test coverage for core logic | PASS (planned) | Spec FR + SC-009 require unit tests for rating flow, union guess set, luck truncation, error handling. Vitest + RTL + MSW cover unit and component/integration levels. |
+| Test coverage for core logic | PASS (planned) | Spec FR + SC-009 require unit tests for rating flow, union guess set, luck rounding, error handling. Vitest + RTL + MSW cover unit and component/integration levels. |
 | Simplicity / YAGNI | PASS | Scope limited to single-target standard Wordle (FR-015). No state library, no UI framework, no backend added. |
 | No unjustified new projects | PASS | Single front-end project; backend reused as-is. |
 | Accessibility & responsiveness | PASS (planned) | Custom combobox follows the ARIA combobox pattern; responsive CSS. |
@@ -119,7 +119,7 @@ wordle-pal-2.0/
 └── README.md
 ```
 
-**Structure Decision**: Single front-end project at the repository root (the repo *is* wordle-pal-2.0). No `frontend/` + `backend/` split because the backend is the pre-existing `wordle-svc` and is out of scope for this feature. Domain logic that is worth unit-testing in isolation (word-list union + indexing, API request/response mapping, luck truncation, the submit state machine) lives in `data/`, `api/`, and `hooks/` so it can be tested without rendering; presentational concerns live in `components/`.
+**Structure Decision**: Single front-end project at the repository root (the repo *is* wordle-pal-2.0). No `frontend/` + `backend/` split because the backend is the pre-existing `wordle-svc` and is out of scope for this feature. Domain logic that is worth unit-testing in isolation (word-list union + indexing, API request/response mapping, luck rounding, the submit state machine) lives in `data/`, `api/`, and `hooks/` so it can be tested without rendering; presentational concerns live in `components/`.
 
 ## Complexity Tracking
 

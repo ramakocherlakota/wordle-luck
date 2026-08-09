@@ -28,7 +28,7 @@ describe('App — User Story 1 (rate luck)', () => {
     expect(submit).toBeEnabled();
   });
 
-  it('renders GUESS/SCORE/LUCK columns with luck truncated toward zero to 3 decimals (SC-002/003)', async () => {
+  it('renders GUESS/SCORE/LUCK columns with luck rounded to 2 decimals (SC-002/003)', async () => {
     const user = userEvent.setup();
     render(<App />);
     await pickWord(user, 'Target answer', 'crane');
@@ -49,12 +49,11 @@ describe('App — User Story 1 (rate luck)', () => {
       within(table).getByRole('columnheader', { name: /luck/i }),
     ).toBeInTheDocument();
 
-    // 0.5316 truncates to "0.531" (not rounded to "0.532");
-    // -0.5316 truncates to "-0.531" (not "-0.532").
-    expect(within(table).getByText('0.531')).toBeInTheDocument();
-    expect(within(table).getByText('-0.531')).toBeInTheDocument();
-    expect(within(table).queryByText('0.532')).not.toBeInTheDocument();
-    expect(within(table).queryByText('-0.532')).not.toBeInTheDocument();
+    // 0.5316 rounds to "+0.53"; -0.5316 rounds to "-0.53".
+    expect(within(table).getByText('+0.53')).toBeInTheDocument();
+    expect(within(table).getByText('-0.53')).toBeInTheDocument();
+    expect(within(table).queryByText('0.531')).not.toBeInTheDocument();
+    expect(within(table).queryByText('-0.531')).not.toBeInTheDocument();
   });
 
   it('shows a loading + elapsed indicator during the backend call (FR-008/SC-004)', async () => {

@@ -27,7 +27,7 @@ The input actually sent to the backend.
 Per-guess rating returned by the backend and rendered as a table row.
 - **guess**: `string` — the guessed word (GUESS column).
 - **score**: `string` — 5-char pattern over `{b, w, -}` against the target (SCORE column). See ScorePattern below.
-- **luck**: `number` — backend luck value; displayed **truncated to 3 decimal places** (LUCK column). (FR-010, SC-003)
+- **luck**: `number` — backend luck value; displayed **rounded to 2 decimal places** (LUCK column). (FR-010, SC-003)
 - **remainingCountBefore** / **remainingCountAfter**: `number` — `remaining_answers_prior` / `remaining_answers_post`; available for display/labeling in the REMAINING cell (e.g., a count on the button).
 - *(carried but not required for display)*: `uncertaintyPrior`, `uncertaintyPost`, `expUncertaintyPost` — available if a details tooltip is desired.
 - **Ordering**: rows follow guess order. The backend stops rating after a solving guess, so `rows.length ≤ guesses.length`. (see research §Open items)

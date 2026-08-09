@@ -60,7 +60,7 @@ Used once per Submit (User Story 1). Backend derives each guess's score from the
 - **Consume**: `by_target[targets[0]]` → results rows. Ignore `totals` (multi-target aggregate; not shown in single-target UI).
 - **Row count**: the backend appends a rating only while the game is unsolved, so `rows.length ≤ guesses.length` (a solving guess ends the list). Not an error.
 - **`score`**: 5 chars over `{b,w,-}`, may be lowercase — normalize case-insensitively. `b`=correct spot, `w`=present/wrong spot, `-`=absent.
-- **`luck`**: raw float — the UI truncates to 3 decimals for display.
+- **`luck`**: raw float — the UI rounds to 2 decimals and prefixes `+` on positive values for display (matching legacy Wordle Pal).
 
 ### Error responses
 | Condition | Shape | Client handling |

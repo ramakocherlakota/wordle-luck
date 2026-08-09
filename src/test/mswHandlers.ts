@@ -35,7 +35,7 @@ export function scoreGuess(guess: string, target: string): string {
   return res.join('');
 }
 
-// Deterministic luck values so tests can assert truncation behavior.
+// Deterministic luck values so tests can assert rounding behavior.
 // Index 0 → 0.5316 (→ "0.531"), index 1 → -0.5316 (→ "-0.531").
 const LUCK_BY_INDEX = [0.5316, -0.5316, 0.1239, -0.9, 0.05, -0.001];
 

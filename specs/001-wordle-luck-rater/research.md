@@ -18,7 +18,7 @@ This document resolves the technical unknowns implied by the spec's Assumptions 
 - **Decision**: Vitest + React Testing Library + `@testing-library/user-event` (jsdom), with Mock Service Worker (MSW) for HTTP mocking.
 - **Rationale**: SC-009 and app.md require "adequate unit test coverage." Vitest shares Vite's config/transform pipeline (no separate Babel/Jest setup). RTL drives user-centric component tests. MSW intercepts `fetch` at the network layer, so the API module and components are tested against realistic request/response payloads (including error and slow-response paths) without stubbing `fetch` by hand.
 - **Test layers**:
-  - *Pure unit*: word-list union/indexing (`data/`), request builders + response mappers + luck truncation (`api/`), submit state machine (`hooks/`).
+  - *Pure unit*: word-list union/indexing (`data/`), request builders + response mappers + luck rounding (`api/`), submit state machine (`hooks/`).
   - *Component*: WordSelect keyboard/filter behavior, Submit enablement, ResultsTable rendering, RemainingPopup open/close.
   - *Integration*: full submit→results flow with MSW-mocked backend, plus error/unreachable handling.
 - **Alternatives considered**: Jest (heavier config with Vite/ESM); Playwright/Cypress E2E (valuable later, but out of scope for this feature's unit-coverage requirement and needs a live/mocked backend).

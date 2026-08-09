@@ -20,12 +20,12 @@ const RESULTS: GuessRating[] = [
 ];
 
 describe('ResultsTable', () => {
-  it('renders one row per rated guess with truncated luck', () => {
+  it('renders one row per rated guess with rounded luck', () => {
     render(<ResultsTable results={RESULTS} />);
     const rows = screen.getAllByRole('row');
     // 1 header row + 2 data rows
     expect(rows).toHaveLength(3);
-    expect(screen.getByText('0.531')).toBeInTheDocument();
+    expect(screen.getByText('+0.53')).toBeInTheDocument();
   });
 
   it('opens the remaining popup for a row and keeps the table shown', async () => {

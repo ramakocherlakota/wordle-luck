@@ -22,13 +22,13 @@ A player has just finished a standard Wordle puzzle. They open the app, choose t
 
 **Why this priority**: This is the core reason the app exists. Without it, nothing else has value. It is the minimum viable product on its own.
 
-**Independent Test**: Select a valid target word, enter one or more valid guess words, submit, and confirm the app displays a rating row for each guess containing the guess, its score, and a numeric luck value truncated to 3 decimal places.
+**Independent Test**: Select a valid target word, enter one or more valid guess words, submit, and confirm the app displays a rating row for each guess containing the guess, its score, and a numeric luck value rounded to 2 decimal places.
 
 **Acceptance Scenarios**:
 
 1. **Given** the app is open with no selections, **When** the user selects a target word and enters at least one guess word and clicks Submit, **Then** the app calls the backend and displays a results table with a row for each rated guess showing GUESS, SCORE, LUCK, and REMAINING columns.
 2. **Given** a target and guesses are selected, **When** the user clicks Submit, **Then** the app shows clear "waiting" feedback (e.g., a progress indicator with elapsed time) until results return, because the backend call can take a long time.
-3. **Given** results have been returned, **When** the user views the LUCK column, **Then** each luck value is displayed truncated to 3 decimal places.
+3. **Given** results have been returned, **When** the user views the LUCK column, **Then** each luck value is displayed rounded to 2 decimal places.
 4. **Given** the user has not selected a target, or has not entered any guesses, **When** they look at the Submit control, **Then** Submit is unavailable (disabled) until both a target and at least one guess are provided.
 
 ---
@@ -104,7 +104,7 @@ After reviewing one game, the player wants to start fresh. They click Clear and 
 - **FR-007**: On Submit, the app MUST send the selected target and the non-empty guesses (in order) to the existing wordle-svc backend to obtain a luck rating for each guess. Scores for each guess are derived from the target and do not need to be entered by the user.
 - **FR-008**: While the backend request is in progress, the app MUST show clear waiting feedback that indicates work is ongoing (e.g., a progress indicator and elapsed time) and MUST tolerate a long response time without appearing frozen.
 - **FR-009**: On a successful response, the app MUST display a results table with the columns, in order: GUESS, SCORE, LUCK, REMAINING.
-- **FR-010**: In the results table, GUESS MUST show the guessed word, SCORE MUST show the score/color pattern for that guess against the target, and LUCK MUST show the backend-provided luck value truncated to 3 decimal places.
+- **FR-010**: In the results table, GUESS MUST show the guessed word, SCORE MUST show the score/color pattern for that guess against the target, and LUCK MUST show the backend-provided luck value rounded to 2 decimal places with a leading `+` on positive values, matching legacy Wordle Pal.
 - **FR-011**: The REMAINING column MUST provide, for each guess row, a control that opens a popup listing the answer words still possible after that guess (given the guesses and scores up to and including that row).
 - **FR-012**: The remaining-answers popup MUST be dismissible and MUST return the user to the unchanged results table when closed.
 - **FR-013**: The app MUST provide a Clear control that resets the target selection and all guess selections to empty.
@@ -119,7 +119,7 @@ After reviewing one game, the player wants to start fresh. They click Clear and 
 - **Answer Word List**: The complete set of words that can be a Wordle answer; the source of target choices.
 - **Guess Word List**: The complete set of words that can be entered as a guess; combined (unioned) with the answer list to form the selectable guess set.
 - **Score**: The color/letter pattern a guess produces against the target (e.g., which letters are correct, present, or absent). Provided by the backend per guess; not entered by the user.
-- **Luck Rating**: A numeric measure, returned by the backend for each guess, of how lucky that guess was relative to what was expected. Displayed truncated to 3 decimal places.
+- **Luck Rating**: A numeric measure, returned by the backend for each guess, of how lucky that guess was relative to what was expected. Displayed rounded to 2 decimal places, with a leading `+` on positive values (matching legacy Wordle Pal).
 - **Remaining Answers**: For a given point in the game, the set of answer words still consistent with all guesses and their scores up to and including that guess. Retrieved from the backend and shown in a popup.
 
 ## Success Criteria *(mandatory)*
@@ -127,14 +127,14 @@ After reviewing one game, the player wants to start fresh. They click Clear and 
 ### Measurable Outcomes
 
 - **SC-001**: A user who has just finished a Wordle game can select the target, enter their guesses, and reach a fully populated ratings table in fewer than 5 interaction steps beyond entering their words.
-- **SC-002**: For every submitted game, the results table shows exactly one row per **rated** guess — the backend rates each guess up to and including the one that solves the puzzle; any guesses entered after the solve are not rated — each with a guess, a score, and a luck value truncated to 3 decimal places.
-- **SC-003**: 100% of luck values displayed are shown to exactly 3 decimal places.
+- **SC-002**: For every submitted game, the results table shows exactly one row per **rated** guess — the backend rates each guess up to and including the one that solves the puzzle; any guesses entered after the solve are not rated — each with a guess, a score, and a luck value rounded to 2 decimal places.
+- **SC-003**: 100% of luck values displayed are shown to exactly 2 decimal places, matching the values legacy Wordle Pal shows for the same game.
 - **SC-004**: During any backend call, the user always sees an active waiting indicator within 1 second of pressing Submit and continuously until results or an error appear, so the app never appears frozen.
 - **SC-005**: From any results table, a user can open the remaining-answers list for any guess row and close it again, returning to the same table, in at most two interactions.
 - **SC-006**: The guess selector accepts every valid answer word as a guess (verifying the union requirement), including words missing from the raw legacy guess list.
 - **SC-007**: When the backend is unreachable or returns an error, 100% of such cases result in a visible, human-readable message rather than a blank or frozen screen.
 - **SC-008**: A user can go from a completed, rated game to a cleared, ready-for-new-input state with a single Clear action.
-- **SC-009**: The app's core logic is covered by automated unit tests demonstrating the rating flow, the union guess set, luck truncation, and error handling.
+- **SC-009**: The app's core logic is covered by automated unit tests demonstrating the rating flow, the union guess set, luck rounding, and error handling.
 
 ## Assumptions
 

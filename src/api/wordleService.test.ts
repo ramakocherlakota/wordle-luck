@@ -9,7 +9,7 @@ import {
 } from '../test/mswHandlers';
 
 describe('wordleService.rateSolution', () => {
-  it('maps by_target rows to GuessRating[] with truncatable luck', async () => {
+  it('maps by_target rows to GuessRating[] with raw luck', async () => {
     const rows = await rateSolution('crane', ['soare', 'clint', 'crane']);
     expect(rows).toHaveLength(3);
     expect(rows[0]).toMatchObject({

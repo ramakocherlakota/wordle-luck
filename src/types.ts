@@ -14,7 +14,7 @@ export interface GuessRating {
   guess: string;
   /** 5-char pattern over {b,w,-} vs. the target (SCORE column); may be lowercase. */
   score: string;
-  /** Raw luck value; the UI truncates to 3 decimals for display (LUCK column). */
+  /** Raw luck value; the UI rounds to 2 decimals for display (LUCK column). */
   luck: number;
   /** Possible answers remaining before this guess (`remaining_answers_prior`). */
   remainingCountBefore?: number;
