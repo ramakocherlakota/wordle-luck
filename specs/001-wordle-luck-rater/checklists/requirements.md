@@ -1,4 +1,4 @@
-# Specification Quality Checklist: Wordle Luck Rater (wordle-pal-2.0)
+# Specification Quality Checklist: Wordle Luck (wordle-pal-2.0)
 
 **Purpose**: Validate specification completeness and quality before proceeding to planning
 **Created**: 2026-07-28

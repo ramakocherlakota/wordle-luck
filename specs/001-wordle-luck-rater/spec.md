@@ -1,4 +1,4 @@
-# Feature Specification: Wordle Luck Rater (wordle-pal-2.0)
+# Feature Specification: Wordle Luck (wordle-pal-2.0)
 
 **Feature Branch**: `001-wordle-luck-rater`
 

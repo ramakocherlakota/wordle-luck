@@ -1,4 +1,4 @@
-# Quickstart & Validation: Wordle Luck Rater (wordle-pal-2.0)
+# Quickstart & Validation: Wordle Luck (wordle-pal-2.0)
 
 A run/validation guide that proves the feature works end-to-end. Implementation details (component bodies, full test suites) live in `tasks.md` / the implementation phase — this document is how you *verify* it.
 

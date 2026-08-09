@@ -1,4 +1,4 @@
-# Phase 0 Research: Wordle Luck Rater (wordle-pal-2.0)
+# Phase 0 Research: Wordle Luck (wordle-pal-2.0)
 
 This document resolves the technical unknowns implied by the spec's Assumptions ("modern TypeScript front-end", "reuse wordle-svc", "bundled word lists") into concrete, justified decisions. Every decision is grounded in the legacy Wordle Pal code (`/Users/rama/work/wordle-pal`) so wp2 is contract-compatible with the existing backend.
 

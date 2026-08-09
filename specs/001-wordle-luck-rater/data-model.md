@@ -1,4 +1,4 @@
-# Phase 1 Data Model: Wordle Luck Rater (wordle-pal-2.0)
+# Phase 1 Data Model: Wordle Luck (wordle-pal-2.0)
 
 All data is client-side and transient (front-end only, no persistence). This describes the domain entities, their fields and validation, the derived word-list structures, and the client↔`wordle-svc` message shapes. TypeScript names are indicative; see `contracts/wordle-svc.md` for exact wire fields.
 

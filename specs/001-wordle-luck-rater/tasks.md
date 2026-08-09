@@ -1,8 +1,8 @@
 ---
-description: "Task list for Wordle Luck Rater (wordle-pal-2.0)"
+description: "Task list for Wordle Luck (wordle-pal-2.0)"
 ---
 
-# Tasks: Wordle Luck Rater (wordle-pal-2.0)
+# Tasks: Wordle Luck (wordle-pal-2.0)
 
 **Input**: Design documents from `/specs/001-wordle-luck-rater/`
 

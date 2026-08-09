@@ -1,4 +1,4 @@
-# Wordle Luck Rater (wordle-pal-2.0)
+# Wordle Luck (wordle-pal-2.0)
 
 A front-end-only React + TypeScript app that rates **how lucky your Wordle guesses were**. Pick the target answer and the words you guessed, submit, and see a `GUESS | SCORE | LUCK | REMAINING` table. Each row's REMAINING control opens a popup listing the answer words still possible after that guess.
 
@@ -68,6 +68,18 @@ npm run typecheck
 npm run build && npm run preview # production build + local preview
 ```
 
+## Icons
+
+`public/favicon.svg` is the source of truth. After editing it, regenerate the
+raster icons — Vite copies `public/` into `dist/` as-is, so they do not rebuild
+themselves:
+
+```bash
+./infra/gen-icons.sh    # rewrites public/favicon.ico + public/apple-touch-icon.png
+```
+
+Needs headless Chrome (override the path with `CHROME=`) and ImageMagick.
+
 ## Backend smoke test
 
 Confirm the backend answers and that `all-wordle.sqlite` supports non-answer
@@ -81,3 +93,10 @@ curl -s -X POST http://localhost:5173/service \
 
 Expect HTTP 200 with a `by_target.crane` array of rating objects; `soare` (a
 non-answer opener) must rate without a `score_guess` error.
+
+## Credits
+
+The shamrock icon is the U+2618 glyph from
+[Twemoji](https://github.com/jdecked/twemoji). Graphics by Twitter, Inc and
+other contributors, licensed under
+[CC-BY 4.0](https://creativecommons.org/licenses/by/4.0/).

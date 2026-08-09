@@ -51,7 +51,7 @@ export default function App() {
   return (
     <main className={styles.app}>
       <header className={styles.header}>
-        <h1 className={styles.title}>Wordle Luck Rater</h1>
+        <h1 className={styles.title}>Wordle Luck</h1>
         <p className={styles.subtitle}>
           Pick the answer and the words you guessed to see how lucky each guess
           was.

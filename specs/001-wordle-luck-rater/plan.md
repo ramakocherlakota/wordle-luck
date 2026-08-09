@@ -1,4 +1,4 @@
-# Implementation Plan: Wordle Luck Rater (wordle-pal-2.0)
+# Implementation Plan: Wordle Luck (wordle-pal-2.0)
 
 **Branch**: `001-wordle-luck-rater` | **Date**: 2026-07-29 | **Spec**: [spec.md](./spec.md)
 
