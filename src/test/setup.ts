@@ -46,5 +46,9 @@ beforeAll(() => {
   server.listen({ onUnhandledRequest: 'error' });
   bridgeAbortSignal();
 });
-afterEach(() => server.resetHandlers());
+// Inputs are persisted to localStorage, so tests must not inherit each other's.
+afterEach(() => {
+  server.resetHandlers();
+  localStorage.clear();
+});
 afterAll(() => server.close());

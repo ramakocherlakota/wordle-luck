@@ -1,7 +1,6 @@
 import { useState } from 'react';
 import type { GuessRating } from '../../types';
 import { formatLuck } from '../../format';
-import ScorePattern from '../ScorePattern/ScorePattern';
 import RemainingPopup from '../RemainingPopup/RemainingPopup';
 import styles from './ResultsTable.module.css';
 
@@ -9,7 +8,11 @@ export interface ResultsTableProps {
   results: GuessRating[];
 }
 
-/** Results table: GUESS | SCORE | LUCK | REMAINING (one row per rated guess). */
+/**
+ * Results table: GUESS | LUCK | REMAINING (one row per rated guess). Scores
+ * are still carried on each row — the remaining-answers lookup needs them —
+ * but they are not shown.
+ */
 export default function ResultsTable({ results }: ResultsTableProps) {
   const [openRow, setOpenRow] = useState<number | null>(null);
   // Per-row memoization of fetched remaining-answer lists (T026 / research §6).
@@ -21,7 +24,6 @@ export default function ResultsTable({ results }: ResultsTableProps) {
         <thead>
           <tr>
             <th scope="col">Guess</th>
-            <th scope="col">Score</th>
             <th scope="col" className={styles.numeric}>
               Luck
             </th>
@@ -34,9 +36,6 @@ export default function ResultsTable({ results }: ResultsTableProps) {
             return (
               <tr key={i}>
                 <td className={styles.guess}>{row.guess}</td>
-                <td>
-                  <ScorePattern score={row.score} />
-                </td>
                 <td className={`${styles.numeric} ${styles.luck}`}>
                   {formatLuck(row.luck)}
                 </td>

@@ -28,6 +28,15 @@ describe('ResultsTable', () => {
     expect(screen.getByText('+0.53')).toBeInTheDocument();
   });
 
+  it('does not display the score column', () => {
+    render(<ResultsTable results={RESULTS} />);
+    expect(
+      screen.queryByRole('columnheader', { name: /score/i }),
+    ).not.toBeInTheDocument();
+    expect(screen.getAllByRole('columnheader')).toHaveLength(3);
+    expect(screen.queryByText('-w--w')).not.toBeInTheDocument();
+  });
+
   it('opens the remaining popup for a row and keeps the table shown', async () => {
     const user = userEvent.setup();
     render(<ResultsTable results={RESULTS} />);

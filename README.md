@@ -1,6 +1,6 @@
 # Wordle Luck (wordle-pal-2.0)
 
-A front-end-only React + TypeScript app that rates **how lucky your Wordle guesses were**. Pick the target answer and the words you guessed, submit, and see a `GUESS | SCORE | LUCK | REMAINING` table. Each row's REMAINING control opens a popup listing the answer words still possible after that guess.
+A front-end-only React + TypeScript app that rates **how lucky your Wordle guesses were**. Pick the target answer and the words you guessed, submit, and see a `GUESS | LUCK | REMAINING` table. Each row's REMAINING control opens a popup listing the answer words still possible after that guess. Your target and guesses are saved to `localStorage` and restored the next time you open the app.
 
 All computation is delegated to the existing [`wordle-svc`](https://github.com/ramakocherlakota/wordle-pal/tree/main/wordle-svc) AWS Lambda (the same backend the legacy Wordle Pal uses). This repo contains **only the front end**.
 

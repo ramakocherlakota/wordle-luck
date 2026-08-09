@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { answerList, guessSet, buildFirstLetterIndex } from './data/wordLists';
+import { loadInputs, saveInputs } from './storage';
 import { useLuckRating } from './hooks/useLuckRating';
 import WordSelect from './components/WordSelect/WordSelect';
 import GuessInputs from './components/GuessInputs/GuessInputs';
@@ -9,14 +10,27 @@ import styles from './App.module.css';
 
 const DEFAULT_SLOTS = 6;
 
+/** Restored slots, topped up to the six shown by default (extras kept). */
+function padSlots(guesses: string[]): string[] {
+  const slots = [...guesses];
+  while (slots.length < DEFAULT_SLOTS) slots.push('');
+  return slots;
+}
+
 export default function App() {
   const answerIndex = useMemo(() => buildFirstLetterIndex(answerList), []);
   const guessIndex = useMemo(() => buildFirstLetterIndex(guessSet), []);
 
-  const [target, setTarget] = useState('');
+  const restored = useMemo(loadInputs, []);
+  const [target, setTarget] = useState(restored.target);
   const [guesses, setGuesses] = useState<string[]>(() =>
-    Array<string>(DEFAULT_SLOTS).fill(''),
+    padSlots(restored.guesses),
   );
+
+  // Persist every input change so a reload comes back where the user left off.
+  useEffect(() => {
+    saveInputs({ target, guesses });
+  }, [target, guesses]);
 
   const { status, results, error, elapsedMs, submit, retry, reset } =
     useLuckRating();

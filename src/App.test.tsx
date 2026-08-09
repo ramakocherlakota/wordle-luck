@@ -28,7 +28,7 @@ describe('App — User Story 1 (rate luck)', () => {
     expect(submit).toBeEnabled();
   });
 
-  it('renders GUESS/SCORE/LUCK columns with luck rounded to 2 decimals (SC-002/003)', async () => {
+  it('renders GUESS/LUCK columns with luck rounded to 2 decimals (SC-002/003)', async () => {
     const user = userEvent.setup();
     render(<App />);
     await pickWord(user, 'Target answer', 'crane');
@@ -43,11 +43,12 @@ describe('App — User Story 1 (rate luck)', () => {
       within(table).getByRole('columnheader', { name: /guess/i }),
     ).toBeInTheDocument();
     expect(
-      within(table).getByRole('columnheader', { name: /score/i }),
-    ).toBeInTheDocument();
-    expect(
       within(table).getByRole('columnheader', { name: /luck/i }),
     ).toBeInTheDocument();
+    // Scores are computed but never shown.
+    expect(
+      within(table).queryByRole('columnheader', { name: /score/i }),
+    ).not.toBeInTheDocument();
 
     // 0.5316 rounds to "+0.53"; -0.5316 rounds to "-0.53".
     expect(within(table).getByText('+0.53')).toBeInTheDocument();
@@ -86,6 +87,47 @@ describe('App — User Story 1 (rate luck)', () => {
     server.resetHandlers();
     await user.click(within(alert).getByRole('button', { name: /retry/i }));
     await screen.findByRole('table');
+  });
+});
+
+describe('App — persisted inputs', () => {
+  it('restores the target and guesses entered in a previous session', async () => {
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await pickWord(user, 'Target answer', 'crane');
+    await pickWord(user, 'Guess 1', 'soare');
+    await pickWord(user, 'Guess 3', 'clint');
+    first.unmount();
+
+    render(<App />);
+    expect(screen.getByLabelText('Target answer')).toHaveValue('crane');
+    expect(screen.getByLabelText('Guess 1')).toHaveValue('soare');
+    expect(screen.getByLabelText('Guess 2')).toHaveValue('');
+    expect(screen.getByLabelText('Guess 3')).toHaveValue('clint');
+  });
+
+  it('restores added slots beyond the default six', async () => {
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await user.click(screen.getByRole('button', { name: /add guess/i }));
+    await pickWord(user, 'Guess 7', 'salet');
+    first.unmount();
+
+    render(<App />);
+    expect(screen.getByLabelText('Guess 7')).toHaveValue('salet');
+  });
+
+  it('does not restore anything after Clear', async () => {
+    const user = userEvent.setup();
+    const first = render(<App />);
+    await pickWord(user, 'Target answer', 'crane');
+    await pickWord(user, 'Guess 1', 'soare');
+    await user.click(screen.getByRole('button', { name: /clear/i }));
+    first.unmount();
+
+    render(<App />);
+    expect(screen.getByLabelText('Target answer')).toHaveValue('');
+    expect(screen.getByLabelText('Guess 1')).toHaveValue('');
   });
 });
 
