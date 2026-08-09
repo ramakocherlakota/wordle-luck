@@ -36,6 +36,9 @@ export default function GuessInputs({
             options={options}
             index={index}
             placeholder={`Guess ${i + 1}`}
+            // The placeholder already names the slot, so the visible label is
+            // redundant — keep it for assistive tech only.
+            hideLabel
           />
         ))}
       </div>
