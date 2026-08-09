@@ -1,5 +1,9 @@
 .table {
   width: 100%;
+  /* Three short columns would otherwise stretch across the whole card, leaving
+     the right-aligned luck numbers marooned far from their guesses. */
+  max-width: 28rem;
+  margin-inline: auto;
   border-collapse: collapse;
   font-size: var(--text-base);
 }
@@ -30,6 +34,9 @@
 .numeric {
   text-align: right;
   font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  /* Shrink-wrap luck + remaining so the guess column absorbs any slack. */
+  width: 1%;
 }
 
 .luck {

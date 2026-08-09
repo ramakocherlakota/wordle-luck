@@ -28,6 +28,22 @@ describe('App — User Story 1 (rate luck)', () => {
     expect(submit).toBeEnabled();
   });
 
+  it('enables Submit for words typed in full and tabbed past (no dropdown)', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    const submit = screen.getByRole('button', { name: /submit/i });
+
+    await user.click(screen.getByLabelText('Target answer'));
+    await user.keyboard('crane');
+    await user.tab();
+    await user.keyboard('soare');
+    await user.tab();
+
+    expect(screen.getByLabelText('Target answer')).toHaveValue('crane');
+    expect(screen.getByLabelText('Guess 1')).toHaveValue('soare');
+    expect(submit).toBeEnabled();
+  });
+
   it('renders GUESS/LUCK columns with luck rounded to 2 decimals (SC-002/003)', async () => {
     const user = userEvent.setup();
     render(<App />);

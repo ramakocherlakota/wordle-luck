@@ -63,6 +63,16 @@ describe('WordSelect', () => {
     expect(screen.queryAllByRole('option')).toHaveLength(0);
   });
 
+  it('commits a fully-typed valid word on blur (tabbing away)', async () => {
+    const user = userEvent.setup();
+    const { input, onChange } = setup();
+    await user.click(input);
+    await user.type(input, 'crate');
+    await user.tab(); // blur without touching the dropdown
+    expect(onChange).toHaveBeenCalledWith('crate');
+    expect((input as HTMLInputElement).value).toBe('crate');
+  });
+
   it('reverts an invalid typed value on blur', async () => {
     const user = userEvent.setup();
     const { input } = setup('crane');

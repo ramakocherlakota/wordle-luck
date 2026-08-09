@@ -96,9 +96,12 @@ export default function WordSelect({
   }
 
   function handleBlur() {
-    // Reverting to the last committed value guarantees only valid words stick.
-    if (inputValue !== value && !optionSet.has(inputValue)) {
-      setInputValue(value);
+    if (inputValue !== value) {
+      // A fully-typed valid word counts as chosen, so tabbing (or clicking)
+      // away commits it without a trip through the dropdown. Anything else
+      // reverts to the last committed value, so only valid words ever stick.
+      if (optionSet.has(inputValue)) commit(inputValue);
+      else setInputValue(value);
     }
     setOpen(false);
   }
