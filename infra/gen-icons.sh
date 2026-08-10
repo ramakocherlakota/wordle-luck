@@ -11,9 +11,11 @@ CHROME="${CHROME:-/Applications/Google Chrome.app/Contents/MacOS/Google Chrome}"
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 PUBLIC="$ROOT/public"
 
-# Baked into apple-touch-icon.png because iOS composites transparent icons over
-# black. Keep in sync with --bg in src/styles/tokens.css.
-BG="#FAFAF9"
+# The icon's own tile color, not the app background: the shamrock needs a dark
+# ground to stay legible at 16px. Baked into the opaque icons so their inset
+# padding blends into the tile drawn by the SVG. Keep in sync with the <rect>
+# fill in public/favicon.svg.
+BG="#121417"
 
 for cmd in "$CHROME" magick; do
   command -v "$cmd" >/dev/null 2>&1 || [ -x "$cmd" ] || {
