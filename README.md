@@ -1,6 +1,6 @@
 # Wordle Luck (wordle-pal-2.0)
 
-A front-end-only React + TypeScript app that rates **how lucky your Wordle guesses were**. Pick the target answer and the words you guessed, submit, and see a `GUESS | LUCK | REMAINING` table. Each row's REMAINING control opens a popup listing the answer words still possible after that guess. Your target and guesses are saved to `localStorage` and restored the next time you open the app.
+A front-end-only React + TypeScript app that rates **how lucky your Wordle guesses were**. Pick the target answer and the words you guessed — or [upload a screenshot](#filling-the-inputs-from-a-screenshot) of the finished game and let the app read them off the board — then submit and see a `GUESS | LUCK | REMAINING` table. Each row's REMAINING control opens a popup listing the answer words still possible after that guess. Your target and guesses are saved to `localStorage` and restored the next time you open the app.
 
 All computation is delegated to the existing [`wordle-svc`](https://github.com/ramakocherlakota/wordle-pal/tree/main/wordle-svc) AWS Lambda (the same backend the legacy Wordle Pal uses). This repo contains **only the front end**.
 
@@ -53,6 +53,39 @@ npm run test                     # Vitest (watch)
 npm run test -- --run            # single run
 npm run test -- --run --coverage # single run with coverage
 ```
+
+## Filling the inputs from a screenshot
+
+Upload (or drop, or paste) a screenshot of a finished game and the target and
+guesses fill themselves in. It all happens in the browser — no upload leaves the
+page, no OCR dependency, nothing added to the bundle. `src/screenshot/`:
+
+| Step        |                                                                                                                                                                |
+| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `colors.ts` | Classifies a pixel as `b`/`w`/`-` by hue and lightness, covering the light, dark, and high-contrast palettes.                                                  |
+| `grid.ts`   | Finds tiles as connected runs of one color, then keeps only bands of exactly five equal, evenly spaced squares — which is what rejects the on-screen keyboard. |
+| `glyphs.ts` | Cuts the white letter from each tile, normalizes it to a small bitmap, and ranks the 26 letters against the alphabet rendered on a canvas.                     |
+| `solve.ts`  | Turns those rankings into words.                                                                                                                               |
+
+The last step is the one that matters. Shape matching alone reads about 92% of
+letters correctly, which would be useless on its own — but a finished board is
+heavily over-determined: the all-green row is an answer-list word, and every
+other row must be a guess-list word whose score against that answer reproduces
+its colors exactly. So the parser picks the whole board at once, trying the
+answers that best fit the green row and finding the cheapest legal word for
+every other row. Rows correct each other, and misread letters get overruled.
+
+Known limits:
+
+- **A shared results grid won't work** — the emoji squares carry no letters.
+  The app says so rather than guessing.
+- **An unfinished game** has no all-green row to take the answer from, so the
+  guesses are filled in from shapes alone and the target is left blank.
+- **An answer outside the bundled list** (NYT has retired some) can't be
+  matched; the rows it can't explain are flagged in the summary.
+
+Anything the parser gets wrong is editable — it fills the same inputs you would
+have typed, and nothing is submitted until you press Submit.
 
 ## Lint / format / typecheck
 

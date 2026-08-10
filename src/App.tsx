@@ -3,9 +3,11 @@ import { answerList, guessSet, buildFirstLetterIndex } from './data/wordLists';
 import { loadInputs, saveInputs } from './storage';
 import { useLuckRating } from './hooks/useLuckRating';
 import WordSelect from './components/WordSelect/WordSelect';
+import ScreenshotUpload from './components/ScreenshotUpload/ScreenshotUpload';
 import GuessInputs from './components/GuessInputs/GuessInputs';
 import SubmitBar from './components/SubmitBar/SubmitBar';
 import ResultsTable from './components/ResultsTable/ResultsTable';
+import type { ParsedScreenshot } from './screenshot/parseScreenshot';
 import styles from './App.module.css';
 
 const DEFAULT_SLOTS = 6;
@@ -55,6 +57,13 @@ export default function App() {
     submit(target, nonEmptyGuesses);
   }
 
+  function handleParsed(parsed: ParsedScreenshot) {
+    setTarget(parsed.target);
+    setGuesses(padSlots(parsed.guesses));
+    // The old results describe the previous game, so drop them.
+    reset();
+  }
+
   function handleClear() {
     setTarget('');
     setGuesses(Array<string>(DEFAULT_SLOTS).fill(''));
@@ -73,6 +82,11 @@ export default function App() {
       </header>
 
       <section className={styles.inputs} aria-label="Game setup">
+        <ScreenshotUpload
+          onParsed={handleParsed}
+          disabled={status === 'loading'}
+        />
+
         <div className={styles.target}>
           <WordSelect
             label="Target answer"
@@ -104,11 +118,7 @@ export default function App() {
       {status === 'error' && error && (
         <div className={styles.errorBanner} role="alert">
           <span>{error}</span>
-          <button
-            type="button"
-            className={styles.retry}
-            onClick={retry}
-          >
+          <button type="button" className={styles.retry} onClick={retry}>
             Retry
           </button>
         </div>

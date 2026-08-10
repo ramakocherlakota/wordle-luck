@@ -1,10 +1,30 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, type Mock } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { UserEvent } from '@testing-library/user-event';
 import App from './App';
+import { parseScreenshot } from './screenshot/parseScreenshot';
 import { server } from './test/mswServer';
 import { slowHandler, error500Handler } from './test/mswHandlers';
+
+// Screenshot parsing needs a canvas; jsdom has none. The parser itself is
+// covered against synthetic images in src/screenshot/*.test.ts.
+vi.mock('./screenshot/parseScreenshot', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./screenshot/parseScreenshot')>()),
+  parseScreenshot: vi.fn(),
+}));
+
+/** Upload a screenshot that parses to the given board. */
+async function uploadScreenshot(
+  user: UserEvent,
+  board: { target: string; guesses: string[]; patterns: string[] },
+) {
+  (parseScreenshot as Mock).mockResolvedValue({ ...board, unresolved: [] });
+  await user.upload(
+    screen.getByLabelText(/upload a screenshot/i),
+    new File(['pixels'], 'wordle.png', { type: 'image/png' }),
+  );
+}
 
 /** Type a word into a labeled WordSelect combobox and commit it with Enter. */
 async function pickWord(user: UserEvent, label: string, word: string) {
@@ -144,6 +164,78 @@ describe('App — persisted inputs', () => {
     render(<App />);
     expect(screen.getByLabelText('Target answer')).toHaveValue('');
     expect(screen.getByLabelText('Guess 1')).toHaveValue('');
+  });
+});
+
+describe('App — screenshot upload', () => {
+  const CRANE = {
+    target: 'crane',
+    guesses: ['soare', 'clint', 'crane'],
+    patterns: ['-w--w', '--w--', 'bbbbb'],
+  };
+
+  it('fills the target and guesses from the parsed board', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await uploadScreenshot(user, CRANE);
+
+    expect(await screen.findByLabelText('Target answer')).toHaveValue('crane');
+    expect(screen.getByLabelText('Guess 1')).toHaveValue('soare');
+    expect(screen.getByLabelText('Guess 2')).toHaveValue('clint');
+    expect(screen.getByLabelText('Guess 3')).toHaveValue('crane');
+    // The remaining default slots stay empty and Submit is ready.
+    expect(screen.getByLabelText('Guess 4')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /submit/i })).toBeEnabled();
+  });
+
+  it('rates the uploaded board when Submit is pressed', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    await uploadScreenshot(user, CRANE);
+    await user.click(screen.getByRole('button', { name: /submit/i }));
+
+    const table = await screen.findByRole('table');
+    expect(within(table).getByText('soare')).toBeInTheDocument();
+    expect(within(table).getByText('clint')).toBeInTheDocument();
+  });
+
+  it('drops results from the previous game', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await pickWord(user, 'Target answer', 'crane');
+    await pickWord(user, 'Guess 1', 'soare');
+    await user.click(screen.getByRole('button', { name: /submit/i }));
+    await screen.findByRole('table');
+
+    await uploadScreenshot(user, {
+      target: 'slate',
+      guesses: ['soare', 'slate'],
+      patterns: ['-ww--', 'bbbbb'],
+    });
+
+    expect(await screen.findByLabelText('Target answer')).toHaveValue('slate');
+    expect(screen.queryByRole('table')).not.toBeInTheDocument();
+  });
+
+  it('leaves a screenshot it could not read out of the inputs', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    (parseScreenshot as Mock).mockRejectedValue(
+      new Error('no board in this image'),
+    );
+
+    await user.upload(
+      screen.getByLabelText(/upload a screenshot/i),
+      new File(['pixels'], 'cat.png', { type: 'image/png' }),
+    );
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /couldn't read/i,
+    );
+    expect(screen.getByLabelText('Target answer')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
   });
 });
 
