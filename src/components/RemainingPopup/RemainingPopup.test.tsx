@@ -84,9 +84,7 @@ describe('RemainingPopup', () => {
 
     server.resetHandlers(); // recover
     await user.click(within(alert).getByRole('button', { name: /retry/i }));
-    await waitFor(() =>
-      expect(screen.getByText('abbot')).toBeInTheDocument(),
-    );
+    await waitFor(() => expect(screen.getByText('abbot')).toBeInTheDocument());
   });
 
   it('focuses the close button on open and traps Tab within the dialog', async () => {

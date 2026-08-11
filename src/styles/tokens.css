@@ -6,7 +6,11 @@
 
 :root {
   /* Score pattern colors (shared across themes for familiarity) */
-  --score-correct: rgb(242, 111, 59); /* b — correct letter & position (orange) */
+  --score-correct: rgb(
+    242,
+    111,
+    59
+  ); /* b — correct letter & position (orange) */
   --score-present: rgb(122, 184, 245); /* w — present, wrong position (blue) */
   --score-absent: rgb(109, 113, 115); /* - — absent (grey) */
   --score-text: rgb(255, 255, 255);

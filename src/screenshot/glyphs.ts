@@ -48,10 +48,15 @@ const MIN_INK_FRACTION = 0.01;
 /**
  * Cut the letter out of one tile as a coverage mask.
  *
- * The fill color is measured from the ring just inside the tile's edge, which
- * the letter never reaches; each pixel's coverage is then how far it lies from
- * that fill towards white. Returns `null` for a tile with no letter in it — a
- * shared emoji grid lands here.
+ * The fill lightness is measured from the ring just inside the tile's edge,
+ * which the letter never reaches. The letter is then whatever contrasts with
+ * it — and the direction is not fixed: the high-contrast themes print black
+ * letters on their orange and blue tiles while every other theme prints white
+ * ones, and a single board can mix the two. So look both ways and take
+ * whichever side of the fill has further to travel.
+ *
+ * Returns `null` for a tile with no letter on it — an unplayed row, or a shared
+ * emoji grid.
  */
 export function extractGlyph(img: RgbaImage, tile: Tile): GlyphBitmap | null {
   const inset = Math.round(
@@ -83,16 +88,31 @@ export function extractGlyph(img: RgbaImage, tile: Tile): GlyphBitmap | null {
     }
   }
   const fill = ringSum / Math.max(1, ringCount);
-  const range = 255 - fill;
-  // A tile whose fill is already near-white has no readable white letter.
+
+  // How far the interior actually departs from the fill, each way.
+  let lightest = fill;
+  let darkest = fill;
+  for (let y = y0; y <= y1; y++) {
+    for (let x = x0; x <= x1; x++) {
+      const i = (y * img.width + x) * 4;
+      const l = luma(img.data[i]!, img.data[i + 1]!, img.data[i + 2]!);
+      if (l > lightest) lightest = l;
+      if (l < darkest) darkest = l;
+    }
+  }
+  const lightRange = lightest - fill;
+  const darkRange = fill - darkest;
+  const range = Math.max(lightRange, darkRange);
+  // Nothing stands out from the fill: an empty tile.
   if (range < 40) return null;
+  const inkIsLighter = lightRange >= darkRange;
 
   const mask = new Float32Array(w * h);
   for (let y = 0; y < h; y++) {
     for (let x = 0; x < w; x++) {
       const i = ((y0 + y) * img.width + (x0 + x)) * 4;
-      const value =
-        (luma(img.data[i]!, img.data[i + 1]!, img.data[i + 2]!) - fill) / range;
+      const l = luma(img.data[i]!, img.data[i + 1]!, img.data[i + 2]!);
+      const value = (inkIsLighter ? l - fill : fill - l) / range;
       mask[y * w + x] = value < 0 ? 0 : value > 1 ? 1 : value;
     }
   }

@@ -60,27 +60,49 @@ Upload (or drop, or paste) a screenshot of a finished game and the target and
 guesses fill themselves in. It all happens in the browser — no upload leaves the
 page, no OCR dependency, nothing added to the bundle. `src/screenshot/`:
 
-| Step        |                                                                                                                                                                |
-| ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `colors.ts` | Classifies a pixel as `b`/`w`/`-` by hue and lightness, covering the light, dark, and high-contrast palettes.                                                  |
-| `grid.ts`   | Finds tiles as connected runs of one color, then keeps only bands of exactly five equal, evenly spaced squares — which is what rejects the on-screen keyboard. |
-| `glyphs.ts` | Cuts the white letter from each tile, normalizes it to a small bitmap, and ranks the 26 letters against the alphabet rendered on a canvas.                     |
-| `solve.ts`  | Turns those rankings into words.                                                                                                                               |
+| Step         |                                                                                                                                                         |
+| ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `grid.ts`    | Grows regions of near-uniform color, keeps the tile-shaped ones, fits the board's lattice to them, then reads **every** cell at its predicted position. |
+| `glyphs.ts`  | Cuts the letter from each tile, normalizes it to a small bitmap, and ranks the 26 letters against the alphabet rendered on a canvas.                    |
+| `palette.ts` | Works out which detected color means what, from the board's own structure.                                                                              |
+| `solve.ts`   | Turns letter rankings into words.                                                                                                                       |
 
-The last step is the one that matters. Shape matching alone reads about 92% of
-letters correctly, which would be useless on its own — but a finished board is
-heavily over-determined: the all-green row is an answer-list word, and every
+Two of those deserve explanation, because both replaced something simpler that
+broke on real screenshots.
+
+**Nothing is keyed off color.** Wordle ships several palettes, and a real
+high-contrast dark screenshot turned out to use blue for correct and brown for
+present — the reverse of the hue order the light high-contrast theme uses, over
+_light_ grey absent tiles with _black_ letters on them. So meaning is inferred
+instead: a finished game ends on a row that is entirely "correct", which names
+that color outright, whatever it happens to be. That leaves at most two colors
+to tell apart, and rather than guess between them, both readings go to the
+solver — only one of them has real words that produce those colors.
+
+**Segmentation only finds the lattice, not the tiles.** At the size screenshots
+actually arrive in — 296×640, 40px tiles, JPEG — a tile will sometimes split
+into a rim and a core, or blend into the neighbor it shares a color with, and
+losing one tile used to lose its whole row. But the board is rigid: five
+columns, one pitch, one tile size. So the tiles that survive segmentation are
+used only to fit that lattice, and then every cell is read straight from the
+image at its predicted position. A tile that segmentation mangled is read
+anyway, from where its neighbors say it has to be.
+
+The solver is what makes the letters good enough. Shape matching alone reads
+about 92% of them correctly, useless on its own — but a finished board is
+heavily over-determined: the all-correct row is an answer-list word, and every
 other row must be a guess-list word whose score against that answer reproduces
 its colors exactly. So the parser picks the whole board at once, trying the
-answers that best fit the green row and finding the cheapest legal word for
+answers that best fit the winning row and finding the cheapest legal word for
 every other row. Rows correct each other, and misread letters get overruled.
 
 Known limits:
 
 - **A shared results grid won't work** — the emoji squares carry no letters.
   The app says so rather than guessing.
-- **An unfinished game** has no all-green row to take the answer from, so the
-  guesses are filled in from shapes alone and the target is left blank.
+- **An unfinished game** has no all-correct row, so nothing pins down which
+  color is which; the guesses are filled from shapes alone and the target is
+  left blank. The same applies if something covers the winning row.
 - **An answer outside the bundled list** (NYT has retired some) can't be
   matched; the rows it can't explain are flagged in the summary.
 

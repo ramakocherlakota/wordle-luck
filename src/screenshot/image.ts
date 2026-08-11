@@ -77,6 +77,97 @@ export function downscale(
   return { image: { width, height, data }, factor };
 }
 
+/**
+ * Downscale to at most `maxDim`, then run a 3×3 median filter.
+ *
+ * A median rather than a blur, because the point is the *edges*. Averaging
+ * spreads a tile's border into a band of in-between colours, and region growing
+ * then peels that band off as a separate sliver, leaving the tile itself
+ * looking like a partly-filled box — which is exactly how real screenshots were
+ * losing tiles. A median snaps each pixel to one side of the edge or the other
+ * while leaving flat areas untouched, and it still removes the speckle that
+ * would otherwise break a JPEG-compressed tile apart.
+ *
+ * Returns the downscale factor so boxes found here map back to full-resolution
+ * coordinates.
+ */
+export function denoise(
+  img: RgbaImage,
+  maxDim: number,
+): { image: RgbaImage; factor: number } {
+  const { image, factor } = downscale(img, maxDim);
+  const { width, height, data } = image;
+  const out = new Uint8ClampedArray(data.length);
+
+  for (let y = 0; y < height; y++) {
+    const up = (y > 0 ? y - 1 : 0) * width;
+    const mid = y * width;
+    const down = (y + 1 < height ? y + 1 : height - 1) * width;
+    for (let x = 0; x < width; x++) {
+      const left = x > 0 ? x - 1 : 0;
+      const right = x + 1 < width ? x + 1 : width - 1;
+      const o = (mid + x) * 4;
+      for (let c = 0; c < 3; c++) {
+        out[o + c] = median9(
+          data[(up + left) * 4 + c]!,
+          data[(up + x) * 4 + c]!,
+          data[(up + right) * 4 + c]!,
+          data[(mid + left) * 4 + c]!,
+          data[o + c]!,
+          data[(mid + right) * 4 + c]!,
+          data[(down + left) * 4 + c]!,
+          data[(down + x) * 4 + c]!,
+          data[(down + right) * 4 + c]!,
+        );
+      }
+      out[o + 3] = data[o + 3]!;
+    }
+  }
+
+  return { image: { width, height, data: out }, factor };
+}
+
+/**
+ * Median of nine values via a fixed sorting network — 19 compare-exchanges,
+ * no branching on data and no array to index. Sorting a scratch array instead
+ * made the filter the slowest step in the whole parse by a wide margin.
+ */
+function median9(
+  p1: number,
+  p2: number,
+  p3: number,
+  p4: number,
+  p5: number,
+  p6: number,
+  p7: number,
+  p8: number,
+  p9: number,
+): number {
+  let t: number;
+  // prettier-ignore
+  {
+    t = Math.min(p2, p3); p3 = Math.max(p2, p3); p2 = t;
+    t = Math.min(p5, p6); p6 = Math.max(p5, p6); p5 = t;
+    t = Math.min(p8, p9); p9 = Math.max(p8, p9); p8 = t;
+    t = Math.min(p1, p2); p2 = Math.max(p1, p2); p1 = t;
+    t = Math.min(p4, p5); p5 = Math.max(p4, p5); p4 = t;
+    t = Math.min(p7, p8); p8 = Math.max(p7, p8); p7 = t;
+    t = Math.min(p2, p3); p3 = Math.max(p2, p3); p2 = t;
+    t = Math.min(p5, p6); p6 = Math.max(p5, p6); p5 = t;
+    t = Math.min(p8, p9); p9 = Math.max(p8, p9); p8 = t;
+    p4 = Math.max(p1, p4);
+    p6 = Math.min(p6, p9);
+    t = Math.min(p5, p8); p8 = Math.max(p5, p8); p5 = t;
+    p7 = Math.max(p4, p7);
+    p5 = Math.min(p5, p8);
+    t = Math.min(p3, p6); p6 = Math.max(p3, p6); p3 = t;
+    p5 = Math.max(p3, p5);
+    p5 = Math.min(p5, p7);
+    p5 = Math.min(p5, p6);
+  }
+  return p5;
+}
+
 /** Decode an uploaded image file to pixels, downscaling very large sources. */
 export async function decodeImageFile(file: Blob): Promise<RgbaImage> {
   const source = await loadBitmap(file);

@@ -43,11 +43,7 @@ export default function GuessInputs({
         ))}
       </div>
       {onAddGuess && (
-        <button
-          type="button"
-          className={styles.addButton}
-          onClick={onAddGuess}
-        >
+        <button type="button" className={styles.addButton} onClick={onAddGuess}>
           + Add guess
         </button>
       )}

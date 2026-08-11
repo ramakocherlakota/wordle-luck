@@ -23,6 +23,7 @@ const PARSED: ParsedScreenshot = {
   target: 'crane',
   guesses: ['adieu', 'crane'],
   unresolved: [],
+  cost: 0,
   patterns: ['w--w-', 'bbbbb'],
 };
 
@@ -31,12 +32,12 @@ function imageFile(name = 'wordle.png') {
 }
 
 async function upload(file: File) {
-  await userEvent.upload(screen.getByLabelText(/upload a screenshot/i), file);
+  await userEvent.upload(screen.getByLabelText(/upload screenshot/i), file);
 }
 
 /** The drop zone: the input's parent. */
 function dropZone(): HTMLElement {
-  return screen.getByLabelText(/upload a screenshot/i).parentElement!;
+  return screen.getByLabelText(/upload screenshot/i).parentElement!;
 }
 
 function drop(file: File) {
@@ -157,7 +158,7 @@ describe('ScreenshotUpload', () => {
 
   it('ignores uploads while a rating is in flight', async () => {
     render(<ScreenshotUpload onParsed={vi.fn()} disabled />);
-    expect(screen.getByLabelText(/upload a screenshot/i)).toBeDisabled();
+    expect(screen.getByLabelText(/upload screenshot/i)).toBeDisabled();
   });
 
   it('keeps only the most recent image when two are dropped in a row', async () => {

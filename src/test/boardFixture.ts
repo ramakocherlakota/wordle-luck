@@ -1,19 +1,25 @@
 /**
  * Synthetic Wordle screenshots for the screenshot-parsing tests.
  *
- * Paints boards pixel by pixel in any of the three NYT palettes, with letters
- * drawn from a small bitmap font, so the parsing pipeline can be exercised end
- * to end without canvas (jsdom has none) and without checking image files in.
+ * Paints boards pixel by pixel in any of the palettes below, with letters drawn
+ * from a small bitmap font, so the parsing pipeline can be exercised end to end
+ * without canvas (jsdom has none) and without checking image files in.
  */
 
 import { normalizeMask, type LetterTemplates } from '../screenshot/glyphs';
 import type { RgbaImage } from '../screenshot/image';
 
-export type Theme = 'light' | 'dark' | 'highContrast';
+export type Theme = 'light' | 'dark' | 'highContrast' | 'highContrastDark';
 
 type Rgb = [number, number, number];
 
-/** The real tile colors, so the fixtures test the actual classifier. */
+/**
+ * Tile colors sampled from real screenshots, so the fixtures exercise what the
+ * app actually meets. `highContrastDark` is measured from a phone screenshot
+ * and is the reason none of this is keyed off hue any more: it uses blue for
+ * correct and brown for present — the reverse of the light high-contrast
+ * theme — over *light* grey absent tiles.
+ */
 export const PALETTES: Record<Theme, Record<'b' | 'w' | '-' | 'bg', Rgb>> = {
   light: {
     b: [106, 170, 100], // #6aaa64
@@ -32,6 +38,12 @@ export const PALETTES: Record<Theme, Record<'b' | 'w' | '-' | 'bg', Rgb>> = {
     w: [133, 192, 249], // #85c0f9
     '-': [58, 58, 60],
     bg: [18, 18, 19],
+  },
+  highContrastDark: {
+    b: [15, 129, 190], // #0f81be — blue means *correct* here
+    w: [118, 60, 11], // #763c0b — brown means present
+    '-': [191, 191, 189], // #bfbfbd — and absent is light, with dark letters
+    bg: [229, 229, 229],
   },
 };
 
@@ -85,6 +97,8 @@ export interface RenderOptions {
   keyboard?: boolean;
   /** Peak ±amplitude of per-pixel noise, imitating compression artifacts. */
   noise?: number;
+  /** Outlined, letterless rows below the board, as an unfinished game has. */
+  unplayedRows?: number;
 }
 
 function makeImage(width: number, height: number, bg: Rgb): RgbaImage {
@@ -121,16 +135,23 @@ function fillRect(
   }
 }
 
-/** Draw one letter in white, centered in the tile at `(x, y)`. */
+/**
+ * Draw one letter centered in the tile at `(x, y)`, in whichever of black or
+ * white stands out against the tile — which is what Wordle does, and why the
+ * parser cannot assume letters are the lighter of the two.
+ */
 function drawLetter(
   img: RgbaImage,
   letter: string,
   x: number,
   y: number,
   tile: number,
+  fill: Rgb,
 ): void {
   const rows = FONT[letter];
   if (!rows) return;
+  const light = 0.2126 * fill[0] + 0.7152 * fill[1] + 0.0722 * fill[2] > 140;
+  const ink: Rgb = light ? [0, 0, 0] : [255, 255, 255];
   const scale = Math.max(1, Math.floor((tile * 0.6) / GLYPH_H));
   const originX = x + Math.round((tile - GLYPH_W * scale) / 2);
   const originY = y + Math.round((tile - GLYPH_H * scale) / 2);
@@ -143,7 +164,7 @@ function drawLetter(
         originY + r * scale,
         scale,
         scale,
-        [255, 255, 255],
+        ink,
       );
     }
   }
@@ -161,11 +182,13 @@ export function renderBoard(
     margin = 20,
     keyboard = false,
     noise = 0,
+    unplayedRows = 0,
   } = options;
   const palette = PALETTES[theme];
 
+  const totalRows = rows.length + unplayedRows;
   const boardWidth = 5 * tile + 4 * gap;
-  const boardHeight = rows.length * tile + (rows.length - 1) * gap;
+  const boardHeight = totalRows * tile + (totalRows - 1) * gap;
   const keyboardHeight = keyboard ? 3 * 58 + 2 * 8 + margin : 0;
   const img = makeImage(
     boardWidth + margin * 2,
@@ -180,9 +203,24 @@ export function renderBoard(
       const symbol = (row.pattern[c] ?? '-') as 'b' | 'w' | '-';
       fillRect(img, x, y, tile, tile, palette[symbol]);
       const letter = row.word[c];
-      if (letter) drawLetter(img, letter, x, y, tile);
+      if (letter) drawLetter(img, letter, x, y, tile, palette[symbol]);
     }
   });
+
+  // Rows the player never reached: an outlined box, and no letter.
+  for (let r = rows.length; r < totalRows; r++) {
+    const y = margin + r * (tile + gap);
+    for (let c = 0; c < 5; c++) {
+      const x = margin + c * (tile + gap);
+      const border: Rgb = [
+        (palette.bg[0] + 128) / 2,
+        (palette.bg[1] + 128) / 2,
+        (palette.bg[2] + 128) / 2,
+      ];
+      fillRect(img, x, y, tile, tile, border);
+      fillRect(img, x + 2, y + 2, tile - 4, tile - 4, palette.bg);
+    }
+  }
 
   if (keyboard) {
     // Three rows of 10/9/9 keys, 43×58 — the shape the detector must reject.
@@ -192,7 +230,7 @@ export function renderBoard(
       for (let k = 0; k < count; k++) {
         const symbol = (['b', 'w', '-'] as const)[(r + k) % 3]!;
         fillRect(img, margin + k * (43 + 6), y, 43, 58, palette[symbol]);
-        drawLetter(img, 'a', margin + k * (43 + 6), y - 7, 43);
+        drawLetter(img, 'a', margin + k * (43 + 6), y - 7, 43, palette[symbol]);
       }
     });
   }

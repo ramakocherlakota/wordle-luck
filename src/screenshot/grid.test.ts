@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { renderBoard, type Theme } from '../test/boardFixture';
-import { detectBoard, detectTiles } from './grid';
+import { PALETTES, renderBoard, type Theme } from '../test/boardFixture';
+import { colorDistance, detectBoard, detectTiles } from './grid';
+import { candidatePatterns } from './palette';
 
 const GAME = [
   { word: 'slate', pattern: '--b-b' },
@@ -13,12 +14,18 @@ describe('detectBoard', () => {
     (theme) => {
       const rows = detectBoard(renderBoard(GAME, { theme }));
       expect(rows).toHaveLength(2);
-      expect(rows.map((row) => row.map((t) => t.color).join(''))).toEqual([
-        '--b-b',
-        'bbbbb',
-      ]);
+      // Tiles carry their measured colour; the palette module names them.
+      expect(candidatePatterns(rows)).toContainEqual(['--b-b', 'bbbbb']);
     },
   );
+
+  it('measures each tile colour accurately', () => {
+    const rows = detectBoard(renderBoard(GAME, { theme: 'light' }));
+    expect(colorDistance(rows[1]![0]!.rgb, PALETTES.light.b)).toBeLessThan(6);
+    expect(colorDistance(rows[0]![0]!.rgb, PALETTES.light['-'])).toBeLessThan(
+      6,
+    );
+  });
 
   it('returns rows top to bottom and tiles left to right', () => {
     const rows = detectBoard(
@@ -27,7 +34,7 @@ describe('detectBoard', () => {
         { word: 'crane', pattern: 'bbbbb' },
       ]),
     );
-    expect(rows[0]!.map((t) => t.color).join('')).toBe('w----');
+    expect(candidatePatterns(rows)).toContainEqual(['w----', 'bbbbb']);
     expect(rows[0]!.map((t) => t.x0)).toEqual(
       [...rows[0]!.map((t) => t.x0)].sort((a, b) => a - b),
     );

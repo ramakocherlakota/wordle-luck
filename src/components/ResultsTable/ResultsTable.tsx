@@ -63,9 +63,7 @@ export default function ResultsTable({ results }: ResultsTableProps) {
           guesses={results.slice(0, openRow + 1).map((r) => r.guess)}
           scores={results.slice(0, openRow + 1).map((r) => r.score)}
           cachedWords={cache[openRow]}
-          onLoaded={(words) =>
-            setCache((c) => ({ ...c, [openRow]: words }))
-          }
+          onLoaded={(words) => setCache((c) => ({ ...c, [openRow]: words }))}
           onClose={() => setOpenRow(null)}
         />
       )}

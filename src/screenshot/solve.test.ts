@@ -43,7 +43,7 @@ describe('solveBoard', () => {
       [row('--b-b', 'slate'), row('bbbbb', 'crane')],
       LISTS,
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       target: 'crane',
       guesses: ['slate', 'crane'],
       unresolved: [],
@@ -88,7 +88,7 @@ describe('solveBoard', () => {
       [row('--b-b', 'sl?te'), row('bbbbb', 'cra?e')],
       LISTS,
     );
-    expect(result).toEqual({
+    expect(result).toMatchObject({
       target: 'crane',
       guesses: ['slate', 'crane'],
       unresolved: [],
@@ -117,7 +117,7 @@ describe('solveBoard', () => {
   });
 
   it('handles an empty board', () => {
-    expect(solveBoard([], LISTS)).toEqual({
+    expect(solveBoard([], LISTS)).toMatchObject({
       target: '',
       guesses: [],
       unresolved: [],

@@ -37,6 +37,11 @@ export interface SolvedBoard {
   guesses: string[];
   /** Indices of rows left at `''` — the caller should flag these. */
   unresolved: number[];
+  /**
+   * Total shape cost of this reading. Comparable between two readings of the
+   * same board, which is how the colour assignment is chosen.
+   */
+  cost: number;
 }
 
 export interface WordLists {
@@ -92,7 +97,8 @@ export function solveBoard(
   rows: RowObservation[],
   lists: WordLists,
 ): SolvedBoard {
-  if (rows.length === 0) return { target: '', guesses: [], unresolved: [] };
+  if (rows.length === 0)
+    return { target: '', guesses: [], unresolved: [], cost: 0 };
 
   const solvedRow = rows.reduce(
     (found, row, i) => (row.pattern === SOLVED_PATTERN ? i : found),
@@ -100,13 +106,13 @@ export function solveBoard(
   );
 
   if (solvedRow < 0) {
-    const guesses = rows.map(
-      (row) => rankByShape(lists.guesses, row.costs, 1)[0]?.word ?? '',
-    );
+    const ranked = rows.map((row) => rankByShape(lists.guesses, row.costs, 1));
+    const guesses = ranked.map((r) => r[0]?.word ?? '');
     return {
       target: '',
       guesses,
       unresolved: guesses.flatMap((g, i) => (g === '' ? [i] : [])),
+      cost: ranked.reduce((sum, r) => sum + (r[0]?.cost ?? 0), 0),
     };
   }
 
@@ -166,7 +172,7 @@ export function solveBoard(
         guesses[row.index] = bestWord[r]!;
       });
       bestCost = total;
-      best = { target, guesses, unresolved };
+      best = { target, guesses, unresolved, cost: total };
     }
   }
 
@@ -175,6 +181,7 @@ export function solveBoard(
       target: '',
       guesses: rows.map(() => ''),
       unresolved: rows.map((_, i) => i),
+      cost: Infinity,
     }
   );
 }

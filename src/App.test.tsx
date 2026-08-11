@@ -21,7 +21,7 @@ async function uploadScreenshot(
 ) {
   (parseScreenshot as Mock).mockResolvedValue({ ...board, unresolved: [] });
   await user.upload(
-    screen.getByLabelText(/upload a screenshot/i),
+    screen.getByLabelText(/upload screenshot/i),
     new File(['pixels'], 'wordle.png', { type: 'image/png' }),
   );
 }
@@ -227,7 +227,7 @@ describe('App — screenshot upload', () => {
     );
 
     await user.upload(
-      screen.getByLabelText(/upload a screenshot/i),
+      screen.getByLabelText(/upload screenshot/i),
       new File(['pixels'], 'cat.png', { type: 'image/png' }),
     );
 

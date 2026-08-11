@@ -167,7 +167,8 @@ export default function RemainingPopup({
             ) : (
               <>
                 <p className={styles.count}>
-                  {words.length} possible {words.length === 1 ? 'answer' : 'answers'}
+                  {words.length} possible{' '}
+                  {words.length === 1 ? 'answer' : 'answers'}
                 </p>
                 <ul className={styles.words}>
                   {words.map((w) => (

@@ -108,12 +108,8 @@ export default function ScreenshotUpload({
             below, and a control that renames itself mid-action is hard to
             follow — for a screen reader above all. */}
         <label htmlFor={inputId} className={styles.button}>
-          Upload a screenshot
+          Upload Screenshot
         </label>
-        <p className={styles.hint}>
-          …of a finished game, to fill in the target and guesses. You can also
-          drop an image here or paste one.
-        </p>
       </div>
 
       <div role="status" aria-live="polite" className={styles.feedback}>

@@ -72,8 +72,7 @@ export function buildRatingRows(
 export const handlers = [
   http.post(ENDPOINT, async ({ request }) => {
     const body = (await request.json()) as
-      | RateSolutionRequest
-      | RemainingRequest;
+      RateSolutionRequest | RemainingRequest;
 
     if (body.operation === 'rate_solution') {
       const target = body.targets[0]!;

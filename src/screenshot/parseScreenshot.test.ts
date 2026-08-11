@@ -57,6 +57,42 @@ describe('parseBoardImage', () => {
     expect(result.guesses).toEqual(['adieu', 'moist', 'brine']);
   });
 
+  // The four cases below are the ones real phone screenshots broke on; each
+  // stands for a lesson the synthetic boards had not been teaching.
+  it('reads a palette it has never been told about', () => {
+    // High-contrast dark: blue means correct and brown means present, the
+    // reverse of the hue order the light high-contrast theme uses. Nothing may
+    // depend on knowing that in advance.
+    const result = parse(CRANE, { theme: 'highContrastDark' });
+    expect(result.target).toBe('crane');
+    expect(result.guesses).toEqual(['adieu', 'moist', 'brine', 'crane']);
+  });
+
+  it('reads dark letters on light tiles as well as light on dark', () => {
+    // The same palette prints black letters on its light absent tiles and
+    // white ones on its blue and brown tiles — on the same board.
+    const result = parse(game('vodka', ['snout', 'vodka']), {
+      theme: 'highContrastDark',
+    });
+    expect(result.guesses).toEqual(['snout', 'vodka']);
+  });
+
+  it('ignores the unplayed rows below a finished game', () => {
+    const result = parse(game('pluck', ['snout', 'pluck']), {
+      unplayedRows: 4,
+    });
+    expect(result.patterns).toHaveLength(2);
+    expect(result.guesses).toEqual(['snout', 'pluck']);
+  });
+
+  it('reads a board at the size a phone screenshot actually arrives in', () => {
+    // Real screenshots came in at 296×640 with 40px tiles — a quarter the size
+    // everything here had been tested at.
+    const result = parse(CRANE, { tile: 40, gap: 4, margin: 14 });
+    expect(result.target).toBe('crane');
+    expect(result.guesses).toEqual(['adieu', 'moist', 'brine', 'crane']);
+  });
+
   it('explains that a shared results grid has no letters in it', () => {
     const emoji = CRANE.map((row) => ({ ...row, word: '' }));
     expect(() => parse(emoji)).toThrow(ScreenshotParseError);
