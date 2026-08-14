@@ -54,6 +54,24 @@ npm run test -- --run            # single run
 npm run test -- --run --coverage # single run with coverage
 ```
 
+### Screenshot regression fixtures
+
+Most of `src/screenshot/` is tested against synthetic boards, but the breaks that
+mattered all came from real screenshots, so `test-pix/` holds some. Each
+subdirectory is one game, **named for the words played in order** — the last of
+them being the answer — and holds that game shot in each of the four
+dark/high-contrast combinations:
+
+```
+test-pix/trice-salon-whump-spine-snipe/{not-,}high-contrast-{not-,}dark.jpg
+```
+
+`realScreenshots.test.ts` derives what it expects from the directory name and
+the scoring rules, so adding a game is a matter of dropping in the directory and
+pointing a new `describe` at it. The images are decoded with `jpeg-js` rather
+than a canvas, which jsdom does not have; everything downstream of decoding is
+the same code the browser runs.
+
 ## Filling the inputs from a screenshot
 
 Upload (or drop, or paste) a screenshot of a finished game and the target and
