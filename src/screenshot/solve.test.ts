@@ -45,6 +45,7 @@ describe('solveBoard', () => {
     );
     expect(result).toMatchObject({
       target: 'crane',
+      targetIsAnswer: true,
       guesses: ['slate', 'crane'],
       unresolved: [],
     });
@@ -81,6 +82,36 @@ describe('solveBoard', () => {
       LISTS,
     );
     expect(result.guesses[0]).toBe('roast');
+  });
+
+  it('reads an answer the answer list has not got, and flags it', () => {
+    // Wordle has gone on setting answers that this app's list predates. Forcing
+    // such a board onto the nearest listed answer would take every other row
+    // down with it, so read the word that is there and say it is not listed.
+    const result = solveBoard(
+      [row('w--wb', 'crane'), row('bbbbb', 'niche')],
+      LISTS,
+    );
+    expect(result).toMatchObject({
+      target: 'niche',
+      targetIsAnswer: false,
+      guesses: ['crane', 'niche'],
+      unresolved: [],
+    });
+  });
+
+  it('prefers a listed answer that fits the shapes very nearly as well', () => {
+    // Read as soare, with stare a whisker behind — and both spell the row's
+    // colors. The answer list is the tie-breaker: an off-list target is only
+    // worth reading when nothing on the list comes close.
+    const costs = seen('soare');
+    costs[1]![ALPHABET.indexOf('t')] = 0.1;
+    const result = solveBoard(
+      [row('w--w-', 'adieu'), { pattern: 'bbbbb', costs }],
+      LISTS,
+    );
+    expect(result.target).toBe('stare');
+    expect(result.targetIsAnswer).toBe(true);
   });
 
   it('fills in a tile whose letter could not be read at all', () => {

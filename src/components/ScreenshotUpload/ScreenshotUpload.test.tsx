@@ -21,6 +21,7 @@ const parseMock = parseScreenshot as Mock;
 
 const PARSED: ParsedScreenshot = {
   target: 'crane',
+  targetIsAnswer: true,
   guesses: ['adieu', 'crane'],
   unresolved: [],
   cost: 0,
@@ -86,6 +87,22 @@ describe('ScreenshotUpload', () => {
     expect(await screen.findByRole('status')).toHaveTextContent(
       /pick the answer yourself/i,
     );
+  });
+
+  it('names an answer the answer list has not got', async () => {
+    parseMock.mockResolvedValue({
+      ...PARSED,
+      target: 'geode',
+      targetIsAnswer: false,
+      guesses: ['adieu', 'geode'],
+    });
+    render(<ScreenshotUpload onParsed={vi.fn()} />);
+
+    await upload(imageFile());
+
+    const status = await screen.findByRole('status');
+    expect(status).toHaveTextContent(/geode.*not on the answer list/i);
+    expect(status).toHaveTextContent(/pick the answer yourself/i);
   });
 
   it('shows the parse failure verbatim when it explains itself', async () => {

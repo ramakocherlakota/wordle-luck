@@ -59,12 +59,16 @@ npm run test -- --run --coverage # single run with coverage
 Most of `src/screenshot/` is tested against synthetic boards, but the breaks that
 mattered all came from real screenshots, so `test-pix/` holds some. Each
 subdirectory is one game, **named for the words played in order** — the last of
-them being the answer — and holds that game shot in each of the four
-dark/high-contrast combinations:
+them being the answer — holding one image per theme it was shot in:
 
 ```
 test-pix/trice-salon-whump-spine-snipe/{not-,}high-contrast-{not-,}dark.jpg
+test-pix/trice-salon-whomp-booze-evoke-geode/high-contrast-dark.jpg
 ```
+
+The first game is there in all four dark/high-contrast combinations. The second
+is there for its answer: `geode` is not on the bundled answer list, which used
+to take the whole board down with it (see the solver note below).
 
 `realScreenshots.test.ts` derives what it expects from the directory name and
 the scoring rules, so adding a game is a matter of dropping in the directory and
@@ -108,11 +112,22 @@ anyway, from where its neighbors say it has to be.
 
 The solver is what makes the letters good enough. Shape matching alone reads
 about 92% of them correctly, useless on its own — but a finished board is
-heavily over-determined: the all-correct row is an answer-list word, and every
-other row must be a guess-list word whose score against that answer reproduces
-its colors exactly. So the parser picks the whole board at once, trying the
-answers that best fit the winning row and finding the cheapest legal word for
-every other row. Rows correct each other, and misread letters get overruled.
+heavily over-determined: the all-correct row is the answer, and every other row
+must be a guess-list word whose score against that answer reproduces its colors
+exactly. So the parser picks the whole board at once, trying the words that best
+fit the winning row and finding the cheapest legal word for every other row.
+Rows correct each other, and misread letters get overruled.
+
+**The answer list is a preference, not a rule.** Leaning on it is most of why a
+misread winning row still comes out right, but it is a fixed snapshot and Wordle
+has gone on setting words that are not in it. Forcing such a board onto the
+nearest listed answer wrecked every _other_ row too — each was then re-read as
+whatever scored its colors against the wrong answer, so `trice salon whomp booze
+evoke geode` came back as `trice sayon whomp cooze leone globe`. An off-list
+answer is allowed instead, priced at about one badly-read letter: a listed
+answer wins any close contest, but a board that no listed answer explains reads
+correctly. `SolvedBoard.targetIsAnswer` then says so, and the app leaves the
+target box empty rather than parking it on a word it cannot submit.
 
 Known limits:
 
@@ -121,8 +136,9 @@ Known limits:
 - **An unfinished game** has no all-correct row, so nothing pins down which
   color is which; the guesses are filled from shapes alone and the target is
   left blank. The same applies if something covers the winning row.
-- **An answer outside the bundled list** (NYT has retired some) can't be
-  matched; the rows it can't explain are flagged in the summary.
+- **An answer outside the bundled list** is read off the board like any other
+  word, and the guesses fill in as usual — but it can't be offered in the target
+  box, so the summary names it and asks you to pick the answer yourself.
 
 Anything the parser gets wrong is editable — it fills the same inputs you would
 have typed, and nothing is submitted until you press Submit.

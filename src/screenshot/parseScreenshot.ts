@@ -105,8 +105,10 @@ export function parseBoardImage(
       best = candidate;
     }
     // A reading that explains every row leaves nothing for another to improve
-    // on, and searching the word lists again is the expensive part.
-    if (best.unresolved.length === 0 && best.target !== '') break;
+    // on, and searching the word lists again is the expensive part. A target
+    // the answer list has not got is not that: it is the one case where the
+    // other reading is worth the second search.
+    if (best.unresolved.length === 0 && best.targetIsAnswer) break;
   }
 
   return best!;

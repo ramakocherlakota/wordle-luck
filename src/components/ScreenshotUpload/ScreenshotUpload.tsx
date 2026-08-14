@@ -155,6 +155,10 @@ function summarize(parsed: ParsedScreenshot): string {
   const problems: string[] = [];
   if (parsed.target === '') {
     problems.push('no winning row, so pick the answer yourself');
+  } else if (!parsed.targetIsAnswer) {
+    problems.push(
+      `the answer reads as “${parsed.target}”, which is not on the answer list, so pick the answer yourself`,
+    );
   }
   if (parsed.unresolved.length > 0) {
     const list = parsed.unresolved.map((i) => i + 1).join(', ');

@@ -58,7 +58,10 @@ export default function App() {
   }
 
   function handleParsed(parsed: ParsedScreenshot) {
-    setTarget(parsed.target);
+    // A word the answer list has not got cannot be committed in the target
+    // box, so leave it empty rather than parked on something unsubmittable —
+    // the upload's own summary names the word it read and says to pick one.
+    setTarget(parsed.targetIsAnswer ? parsed.target : '');
     setGuesses(padSlots(parsed.guesses));
     // The old results describe the previous game, so drop them.
     reset();

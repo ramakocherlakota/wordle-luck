@@ -17,9 +17,19 @@ vi.mock('./screenshot/parseScreenshot', async (importOriginal) => ({
 /** Upload a screenshot that parses to the given board. */
 async function uploadScreenshot(
   user: UserEvent,
-  board: { target: string; guesses: string[]; patterns: string[] },
+  board: {
+    target: string;
+    guesses: string[];
+    patterns: string[];
+    /** Defaults to true — an answer the app's own list has. */
+    targetIsAnswer?: boolean;
+  },
 ) {
-  (parseScreenshot as Mock).mockResolvedValue({ ...board, unresolved: [] });
+  (parseScreenshot as Mock).mockResolvedValue({
+    targetIsAnswer: true,
+    ...board,
+    unresolved: [],
+  });
   await user.upload(
     screen.getByLabelText(/upload screenshot/i),
     new File(['pixels'], 'wordle.png', { type: 'image/png' }),
@@ -199,6 +209,25 @@ describe('App — screenshot upload', () => {
     const table = await screen.findByRole('table');
     expect(within(table).getByText('soare')).toBeInTheDocument();
     expect(within(table).getByText('clint')).toBeInTheDocument();
+  });
+
+  it('leaves the target empty when the answer is not on the answer list', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+
+    // Wordle has set answers the app's list has not got. The board still reads
+    // back whole — the word is right there in the last guess — but the target
+    // box only takes words it can offer, so it is left for the user.
+    await uploadScreenshot(user, {
+      target: 'geode',
+      targetIsAnswer: false,
+      guesses: ['soare', 'geode'],
+      patterns: ['-w-w-', 'bbbbb'],
+    });
+
+    expect(await screen.findByLabelText('Guess 2')).toHaveValue('geode');
+    expect(screen.getByLabelText('Target answer')).toHaveValue('');
+    expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
   });
 
   it('drops results from the previous game', async () => {

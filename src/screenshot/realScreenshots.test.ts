@@ -8,15 +8,16 @@
  * palette, JPEG ringing around a 40px tile, black letters and white letters on
  * the same board, the browser chrome around the game.
  *
- * So these go the other way. One real game — `trice, salon, whump, spine,
- * snipe` — screenshotted on a phone in all four combinations of Wordle's dark
- * and high-contrast settings, parsed whole, from the same bytes the app would
- * get. They assert the outcome and nothing about how it is reached, so they
+ * So these go the other way: real games, screenshotted on a phone, parsed whole
+ * from the same bytes the app would get. Each directory under `test-pix/` is a
+ * game, named for the words played in order, holding one image per theme it was
+ * shot in. They assert the outcome and nothing about how it is reached, so they
  * should survive any amount of rework of the pipeline; if one of them goes red,
  * the app has stopped reading a screenshot it used to read.
  */
 
 import { describe, expect, it } from 'vitest';
+import { answerList } from '../data/wordLists';
 import { scoreGuess } from '../score';
 import { fontTemplates } from '../test/boardFixture';
 import { loadScreenshot } from '../test/screenshotFile';
@@ -31,7 +32,11 @@ import { parseBoardImage, type ParsedScreenshot } from './parseScreenshot';
  */
 const TEMPLATES = fontTemplates();
 
-/** The directory is named for the game it holds, in the order it was played. */
+/**
+ * The first game, in all four combinations of Wordle's dark and high-contrast
+ * settings. The directory is named for the game it holds, in the order it was
+ * played.
+ */
 const GAME = 'trice-salon-whump-spine-snipe';
 const GUESSES = GAME.split('-');
 const TARGET = GUESSES[GUESSES.length - 1]!;
@@ -114,6 +119,42 @@ describe.each(SCREENSHOTS)('a screenshot of $theme', (shot) => {
     expect(result.unresolved).toEqual([]);
     // Without the winning row there is nothing to say what the answer was.
     expect(result.target).toBe(solved ? TARGET : '');
+  });
+});
+
+/**
+ * A second real game, kept for the one thing the first cannot show: Wordle set
+ * `geode`, and the answer list this app ships predates it. Every row here used
+ * to come out wrong — the solver could only explain the board by reading the
+ * winning row as some listed answer it half-resembled, and the other five rows
+ * were then re-read as whatever scored their colours against that wrong answer,
+ * so a board that was legible to the eye came back as nonsense.
+ */
+describe('a screenshot of a game whose answer is not on the answer list', () => {
+  const GAME = 'trice-salon-whomp-booze-evoke-geode';
+  const GUESSES = GAME.split('-');
+  const TARGET = GUESSES[GUESSES.length - 1]!;
+  const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
+
+  const result = parseBoardImage(loadScreenshot(`${GAME}/high-contrast-dark`), {
+    templates: TEMPLATES,
+  });
+
+  it('is a game the answer list cannot account for', () => {
+    // The premise of everything below. `geode` is a legal *guess*, which is why
+    // the board can be read at all — it is only barred from being the answer.
+    expect(answerList).not.toContain(TARGET);
+  });
+
+  it('reads every row as the word that was played', () => {
+    expect(result.guesses).toEqual(GUESSES);
+    expect(result.unresolved).toEqual([]);
+    expect(result.patterns).toEqual(PATTERNS);
+  });
+
+  it('reads the answer out of the winning row and flags it as unlisted', () => {
+    expect(result.target).toBe(TARGET);
+    expect(result.targetIsAnswer).toBe(false);
   });
 });
 

@@ -6,14 +6,15 @@
  * we are not even using Wordle's real font. But a finished board carries enough
  * redundancy to repair that, because two things must hold at once:
  *
- *   - the all-green row is a word from the answer list, and it *is* the target;
+ *   - the all-green row is the target, and is usually a word from the answer
+ *     list — see the penalty below for the games where it is not;
  *   - every other row is a word from the guess list whose score against that
  *     target reproduces that row's colors, exactly.
  *
- * So instead of picking letters, pick the whole board: try the answers that
- * best fit the green row's shapes, and for each one find the cheapest legal
- * word for every other row. The reading that explains all the colors wins, and
- * a misread letter is corrected by the rest of the board.
+ * So instead of picking letters, pick the whole board: try the words that best
+ * fit the green row's shapes, and for each one find the cheapest legal word for
+ * every other row. The reading that explains all the colors wins, and a misread
+ * letter is corrected by the rest of the board.
  */
 
 import { patternToCode, scoreCode, SOLVED_PATTERN } from '../score';
@@ -33,6 +34,12 @@ export interface RowObservation {
 export interface SolvedBoard {
   /** The puzzle's answer, or `''` if the board never reached an all-green row. */
   target: string;
+  /**
+   * Whether `target` is a word the answer list has. A game whose answer is not
+   * on the list still reads back correctly, but the app cannot offer that word
+   * as the target, so the caller should flag it rather than fill it in.
+   */
+  targetIsAnswer: boolean;
   /** One word per row, in order; `''` where no legal word fit the row. */
   guesses: string[];
   /** Indices of rows left at `''` — the caller should flag these. */
@@ -52,13 +59,30 @@ export interface WordLists {
 }
 
 /**
- * How many answers to try as the target. The right one nearly always ranks
- * first on shape alone; the rest are cheap insurance for a blurry green row.
+ * How many words to try as the target, from each list. The right one nearly
+ * always ranks first on shape alone; the rest are cheap insurance for a blurry
+ * green row.
  */
 const TARGET_CANDIDATES = 40;
 
 /** Charged for a row no legal word fits, to rank complete readings first. */
 const UNRESOLVED_PENALTY = 100;
+
+/**
+ * Charged to a target the answer list has not got.
+ *
+ * The list is strong evidence about what an answer can be, and leaning on it is
+ * most of why a misread green row still comes out right. But it is a fixed
+ * snapshot and Wordle has gone on setting words that are not in it, and forcing
+ * such a board onto the nearest listed word wrecks every *other* row too: each
+ * one is then re-read as whatever scores those colors against the wrong answer.
+ * Better to read the word that is actually there and say so.
+ *
+ * So an off-list target is allowed, at a price of roughly one badly-read
+ * letter — enough that a listed answer takes any close contest, small enough
+ * that a board no listed answer explains still reads correctly.
+ */
+const UNLISTED_TARGET_PENALTY = 0.25;
 
 const LETTER_INDEX: Record<string, number> = Object.fromEntries(
   [...ALPHABET].map((letter, i) => [letter, i]),
@@ -98,7 +122,13 @@ export function solveBoard(
   lists: WordLists,
 ): SolvedBoard {
   if (rows.length === 0)
-    return { target: '', guesses: [], unresolved: [], cost: 0 };
+    return {
+      target: '',
+      targetIsAnswer: false,
+      guesses: [],
+      unresolved: [],
+      cost: 0,
+    };
 
   const solvedRow = rows.reduce(
     (found, row, i) => (row.pattern === SOLVED_PATTERN ? i : found),
@@ -110,6 +140,7 @@ export function solveBoard(
     const guesses = ranked.map((r) => r[0]?.word ?? '');
     return {
       target: '',
+      targetIsAnswer: false,
       guesses,
       unresolved: guesses.flatMap((g, i) => (g === '' ? [i] : [])),
       cost: ranked.reduce((sum, r) => sum + (r[0]?.cost ?? 0), 0),
@@ -126,11 +157,21 @@ export function solveBoard(
   let best: SolvedBoard | null = null;
   let bestCost = Infinity;
 
-  const candidates = rankByShape(
-    lists.answers,
-    rows[solvedRow]!.costs,
-    TARGET_CANDIDATES,
-  );
+  // Answers first, then the rest of the guess list at a penalty, merged back
+  // into one ascending run so the early exit below still holds.
+  const answerSet = new Set(lists.answers);
+  const solvedCosts = rows[solvedRow]!.costs;
+  const candidates = [
+    ...rankByShape(lists.answers, solvedCosts, TARGET_CANDIDATES),
+    ...rankByShape(
+      lists.guesses.filter((word) => !answerSet.has(word)),
+      solvedCosts,
+      TARGET_CANDIDATES,
+    ).map(({ word, cost }) => ({
+      word,
+      cost: cost + UNLISTED_TARGET_PENALTY,
+    })),
+  ].sort((a, b) => a.cost - b.cost);
 
   for (const { word: target, cost: targetCost } of candidates) {
     // Candidates come in ascending shape cost, and the rows can only add to a
@@ -172,13 +213,20 @@ export function solveBoard(
         guesses[row.index] = bestWord[r]!;
       });
       bestCost = total;
-      best = { target, guesses, unresolved, cost: total };
+      best = {
+        target,
+        targetIsAnswer: answerSet.has(target),
+        guesses,
+        unresolved,
+        cost: total,
+      };
     }
   }
 
   return (
     best ?? {
       target: '',
+      targetIsAnswer: false,
       guesses: rows.map(() => ''),
       unresolved: rows.map((_, i) => i),
       cost: Infinity,
