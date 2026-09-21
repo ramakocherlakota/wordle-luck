@@ -84,8 +84,17 @@ export function parseBoardImage(
   const costs = read.map((entry) => entry.costs);
 
   // The board's own structure usually fixes which colour is which, but leaves
-  // "present" and "absent" interchangeable. Solve for each reading and keep
-  // whichever one real words can actually account for.
+  // "present" and "absent" interchangeable. Solve for *every* reading and keep
+  // whichever one real words account for best.
+  //
+  // Every reading, not the first one that works: a wrong reading of the colours
+  // is still a board of legal colours, so the word lists will usually explain
+  // it too, and with a listed answer at the end of it. A screenshot of
+  // stare/cream/pager read its yellows as greys and came back graff/oflag/roger
+  // — complete, plausible, and nothing to do with the game. What separates the
+  // two is not whether a reading can be explained but how dearly: the true one
+  // spells out the shapes that are actually on the tiles, so it wins on cost by
+  // a wide margin. That is only visible once both have been solved.
   const readings = candidatePatterns(rows);
   if (readings.length === 0) readings.push(patternsByHue(rows));
 
@@ -104,11 +113,6 @@ export function parseBoardImage(
     ) {
       best = candidate;
     }
-    // A reading that explains every row leaves nothing for another to improve
-    // on, and searching the word lists again is the expensive part. A target
-    // the answer list has not got is not that: it is the one case where the
-    // other reading is worth the second search.
-    if (best.unresolved.length === 0 && best.targetIsAnswer) break;
   }
 
   return best!;

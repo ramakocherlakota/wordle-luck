@@ -103,9 +103,11 @@ describe('solveBoard', () => {
   it('prefers a listed answer that fits the shapes very nearly as well', () => {
     // Read as soare, with stare a whisker behind — and both spell the row's
     // colors. The answer list is the tie-breaker: an off-list target is only
-    // worth reading when nothing on the list comes close.
+    // worth reading when nothing on the list comes close. The whisker has to be
+    // narrower than UNLISTED_TARGET_PENALTY to be one, so it is set well inside
+    // it rather than at some fixed distance of its own.
     const costs = seen('soare');
-    costs[1]![ALPHABET.indexOf('t')] = 0.1;
+    costs[1]![ALPHABET.indexOf('t')] = 0.04;
     const result = solveBoard(
       [row('w--w-', 'adieu'), { pattern: 'bbbbb', costs }],
       LISTS,

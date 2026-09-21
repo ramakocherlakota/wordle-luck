@@ -210,11 +210,31 @@ function blur(src: GlyphBitmap): GlyphBitmap {
   return out;
 }
 
-/** Mean absolute difference between two normalized glyphs (0 = identical). */
+/**
+ * Distance between two normalized glyphs (0 = identical): the root mean square
+ * of their per-pixel difference.
+ *
+ * Squared rather than absolute, because of the shape the two kinds of
+ * disagreement take. Two renderings of the *same* letter differ all round their
+ * edges — Wordle sets the board in a Franklin Gothic and we are matching it
+ * with whatever grotesque the browser has — which is a great many pixels each
+ * off by a little. Two *different* letters differ by a whole stroke: the bar of
+ * a `G` that a `C` has not got, the leg of an `R` against the bare shoulder of a
+ * `P`. That is far fewer pixels, but each is off by nearly everything.
+ *
+ * Summing absolute differences weighs those the same way and the edges win on
+ * sheer count, which is how the `G` of `pager` came to score below `C`. Squaring
+ * first makes one pixel that is completely wrong outweigh several that are
+ * slightly off, which is the ordering worth having. The square root then puts
+ * the result back on the same 0–1 scale the costs elsewhere are tuned against.
+ */
 export function glyphDistance(a: GlyphBitmap, b: GlyphBitmap): number {
   let sum = 0;
-  for (let i = 0; i < a.length; i++) sum += Math.abs(a[i]! - b[i]!);
-  return sum / a.length;
+  for (let i = 0; i < a.length; i++) {
+    const d = a[i]! - b[i]!;
+    sum += d * d;
+  }
+  return Math.sqrt(sum / a.length);
 }
 
 /**

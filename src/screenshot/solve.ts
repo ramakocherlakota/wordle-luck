@@ -81,8 +81,17 @@ const UNRESOLVED_PENALTY = 100;
  * So an off-list target is allowed, at a price of roughly one badly-read
  * letter — enough that a listed answer takes any close contest, small enough
  * that a board no listed answer explains still reads correctly.
+ *
+ * What "roughly one badly-read letter" comes to is a property of
+ * `glyphDistance`, so this was measured against it rather than guessed. Across
+ * the screenshots in `test-pix/`, ranking the green row's word by shape alone
+ * puts the word that was really played first every time, ahead of the runner-up
+ * by 0.09 to 0.13. A penalty inside that band is therefore the whole useful
+ * range: below it and a close contest stops going to the answer list, above it
+ * and a board the list cannot explain — `geode`, `pager` — is dragged onto a
+ * listed lookalike, which is the worse failure of the two.
  */
-const UNLISTED_TARGET_PENALTY = 0.25;
+const UNLISTED_TARGET_PENALTY = 0.1;
 
 const LETTER_INDEX: Record<string, number> = Object.fromEntries(
   [...ALPHABET].map((letter, i) => [letter, i]),

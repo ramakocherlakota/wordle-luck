@@ -124,9 +124,9 @@ export function candidatePatterns(rows: Tile[][]): string[][] {
   const correct = lastRow[0]!;
   if (!lastRow.every((g) => g === correct)) return [];
 
-  // Absent is far and away the commonest colour on a Wordle board, so try the
-  // rarer of the two as "present" first. Only a prior — the solver still has
-  // the final say — but it means the usual board is solved once, not twice.
+  // Absent is the commoner colour on most Wordle boards, so offer the rarer of
+  // the two as "present" first. Only an ordering: the caller solves every
+  // reading and compares them, so a yellow-heavy board loses nothing by it.
   const tally = new Map<number, number>();
   for (const row of groupOf) {
     for (const g of row) tally.set(g, (tally.get(g) ?? 0) + 1);

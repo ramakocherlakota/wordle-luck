@@ -158,6 +158,51 @@ describe('a screenshot of a game whose answer is not on the answer list', () => 
   });
 });
 
+/**
+ * A third real game, for the failure that made a legible board come back as a
+ * different game altogether: nothing here is unreadable, and every word used to
+ * come out wrong anyway.
+ *
+ * Two colours have to be told apart once the winning row has named the third,
+ * and the parser tries both ways round. The wrong way round is not nonsense —
+ * it is a board of legal Wordle colours, so the word lists cheerfully explain
+ * it too, and this board's wrong reading explained itself completely, with a
+ * listed answer at the end of it: `graff`, `oflag`, `roger`. The parser took
+ * that as proof and stopped looking, because the reading it happened to try
+ * first is the one where the rarer colour means "present" — and this game, with
+ * more yellows on it than greys, is exactly the one that prior gets backwards.
+ *
+ * The answer is also a word the shipped answer list has not got, like `geode`
+ * above, so the board pins both halves of that at once.
+ */
+describe('a screenshot of a board with more present tiles than absent ones', () => {
+  const GAME = 'stare-cream-pager';
+  const GUESSES = GAME.split('-');
+  const TARGET = GUESSES[GUESSES.length - 1]!;
+  const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
+
+  const result = parseBoardImage(
+    loadScreenshot(`${GAME}/not-high-contrast-dark`),
+    { templates: TEMPLATES },
+  );
+
+  it('reads the tile colours the way round the words account for', () => {
+    // The whole board is two yellow-heavy rows over a solved one; read the
+    // other way round it is `ww---`, `w---w`, `bbbbb`, which is just as legal.
+    expect(result.patterns).toEqual(PATTERNS);
+  });
+
+  it('reads every row as the word that was played', () => {
+    expect(result.guesses).toEqual(GUESSES);
+    expect(result.unresolved).toEqual([]);
+  });
+
+  it('reads the answer out of the winning row and flags it as unlisted', () => {
+    expect(result.target).toBe(TARGET);
+    expect(result.targetIsAnswer).toBe(false);
+  });
+});
+
 describe('across themes', () => {
   it('reads the same game whatever the palette', () => {
     const games = SCREENSHOTS.filter((shot) => shot.rows === undefined).map(
