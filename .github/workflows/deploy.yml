@@ -88,6 +88,46 @@ jobs:
           # is here with it.
           aws-region: us-east-1
 
+      # AWS answers a trust-policy mismatch with "Not authorized to perform
+      # sts:AssumeRoleWithWebIdentity" and nothing else — not which condition
+      # failed, not what identity was presented, and the same words if the role
+      # is not there at all. The whole decision turns on claims in a token that
+      # never appears in the log, so a mismatch is invisible from this side.
+      #
+      # So on failure, ask for the same token again and print the three claims
+      # the policy matches on, to compare against the role's trust policy:
+      #
+      #   aws iam get-role --role-name wordle-luck-deploy \
+      #     --query Role.AssumeRolePolicyDocument
+      #
+      # The claims only. The token is a bearer credential for this job and is
+      # never printed.
+      - name: Show the identity AWS rejected
+        if: failure()
+        env:
+          IDP_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
+          IDP_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
+        run: |
+          if [ -z "$IDP_URL" ] || [ -z "$IDP_TOKEN" ]; then
+            echo "No OIDC token endpoint in this job; nothing to show."
+            exit 0
+          fi
+          jwt="$(curl -sS -H "Authorization: bearer $IDP_TOKEN" \
+            "$IDP_URL&audience=sts.amazonaws.com" | jq -r '.value // empty')"
+          if [ -z "$jwt" ]; then
+            echo "Could not mint an OIDC token to inspect."
+            exit 0
+          fi
+          # Middle segment of the JWT, base64url-decoded. Re-pad to a multiple
+          # of four, which base64url omits and base64(1) insists on.
+          body="$(printf '%s' "$jwt" | cut -d. -f2 | tr '_-' '/+')"
+          while [ $(( ${#body} % 4 )) -ne 0 ]; do body="${body}="; done
+          echo "The token this job presented to AWS claimed:"
+          printf '%s' "$body" | base64 -d \
+            | jq '{sub, aud, repository, ref, workflow_ref}'
+          echo
+          echo "The role's trust policy must allow exactly that sub and aud."
+
       # Deploys the stack, builds, uploads to S3, invalidates CloudFront, and
       # prints the site URL.
       - run: ./infra/deploy.sh
