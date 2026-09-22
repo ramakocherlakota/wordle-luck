@@ -102,18 +102,23 @@ jobs:
       #
       # The claims only. The token is a bearer credential for this job and is
       # never printed.
+      #
+      # The two ACTIONS_ID_TOKEN_REQUEST_* variables are read straight from the
+      # shell. They are process environment variables the runner sets on the
+      # job, and the `env` expression context holds only what an `env:` block
+      # put there — so `${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}` is the empty
+      # string, and this step quietly reported having nothing to show.
       - name: Show the identity AWS rejected
         if: failure()
-        env:
-          IDP_URL: ${{ env.ACTIONS_ID_TOKEN_REQUEST_URL }}
-          IDP_TOKEN: ${{ env.ACTIONS_ID_TOKEN_REQUEST_TOKEN }}
         run: |
-          if [ -z "$IDP_URL" ] || [ -z "$IDP_TOKEN" ]; then
+          if [ -z "${ACTIONS_ID_TOKEN_REQUEST_URL:-}" ] ||
+             [ -z "${ACTIONS_ID_TOKEN_REQUEST_TOKEN:-}" ]; then
             echo "No OIDC token endpoint in this job; nothing to show."
             exit 0
           fi
-          jwt="$(curl -sS -H "Authorization: bearer $IDP_TOKEN" \
-            "$IDP_URL&audience=sts.amazonaws.com" | jq -r '.value // empty')"
+          jwt="$(curl -sS -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" \
+            "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=sts.amazonaws.com" \
+            | jq -r '.value // empty')"
           if [ -z "$jwt" ]; then
             echo "Could not mint an OIDC token to inspect."
             exit 0
