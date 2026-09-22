@@ -17,7 +17,7 @@
         "cloudformation:ExecuteChangeSet",
         "cloudformation:DeleteChangeSet"
       ],
-      "Resource": "arn:aws:cloudformation:us-east-1:<AWS_ACCOUNT_ID>:stack/wordle-luck-site-stack/*"
+      "Resource": "arn:aws:cloudformation:us-east-1:*:stack/wordle-luck-site-stack/*"
     },
     {
       "Sid": "GetTemplateSummaryTakesNoResource",

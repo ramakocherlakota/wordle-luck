@@ -166,39 +166,35 @@ workflow only arranges for it to run on a clean checkout with credentials.
 
 Credentials come from GitHub's OIDC provider, so there is no AWS key stored in
 the repository — the runner mints a short-lived token and AWS trades it for role
-credentials that expire with the job. That needs three one-time things in the
-AWS account. Substitute your account ID for `<AWS_ACCOUNT_ID>` in both policy
-files first.
+credentials that expire with the job. Setting that up is two steps.
 
-**1. Teach AWS about GitHub's OIDC provider** (skip if the account has it
-already — `aws iam list-open-id-connect-providers` will say):
+**1. Create the role**, with credentials that can create IAM roles:
 
 ```bash
-aws iam create-open-id-connect-provider \
-  --url https://token.actions.githubusercontent.com \
-  --client-id-list sts.amazonaws.com
+./infra/setup-github-oidc.sh
 ```
 
-**2. Create the role the workflow assumes:**
+It registers GitHub's OIDC provider if the account has not got one, creates the
+`wordle-luck-deploy` role, attaches the deploy policy, and prints the role ARN
+for the next step. Re-running it is safe — each piece is created if missing and
+updated if not.
 
-```bash
-aws iam create-role \
-  --role-name wordle-luck-deploy \
-  --assume-role-policy-document file://infra/github-oidc-trust-policy.json
+The account ID goes in from `aws sts get-caller-identity` rather than being
+edited into the files by hand. Doing it by hand is the step that fails
+obscurely: IAM rejects an ARN with the placeholder still in it as
+`MalformedPolicyDocument ... failed legacy parsing`, which names neither the file
+nor the field. Only `infra/github-oidc-trust-policy.json` has a placeholder
+left, and only because an OIDC provider ARN cannot avoid one;
+`infra/github-oidc-permissions-policy.json` applies as it stands.
 
-aws iam put-role-policy \
-  --role-name wordle-luck-deploy \
-  --policy-name wordle-luck-deploy \
-  --policy-document file://infra/github-oidc-permissions-policy.json
-```
+Which repository and branch may assume the role stays in the trust policy file,
+and it admits exactly one thing: a workflow in this repository running against
+`refs/heads/main`. A run from a branch or a fork gets no credentials.
 
-The trust policy admits exactly one thing: a workflow in this repository running
-against `refs/heads/main`. A run from a branch or a fork gets no credentials.
-
-**3. Point the workflow at the role.** In the repository's
+**2. Point the workflow at the role.** In the repository's
 Settings → Secrets and variables → Actions → Variables, add a variable named
 `AWS_DEPLOY_ROLE_ARN` with the role's ARN
-(`arn:aws:iam::<AWS_ACCOUNT_ID>:role/wordle-luck-deploy`). It is a variable
+(the script prints it; `arn:aws:iam::<account>:role/wordle-luck-deploy`). It is a variable
 rather than a secret because an ARN is not one, and an unmasked value is far
 easier to debug. The deploy job stops with a pointer to this section if it is
 missing.
