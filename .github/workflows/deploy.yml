@@ -46,14 +46,30 @@ jobs:
       # Without this the run would fail several steps later inside the AWS SDK,
       # with an error about the credential chain rather than about the setup
       # step that was actually missed.
+      #
+      # "Not set" has more than one cause and they are not distinguishable from
+      # the empty string, so ask the other question too: Settings → Secrets and
+      # variables → Actions has a Secrets tab and a Variables tab, and a value
+      # entered under the wrong one is silently invisible to the other. Knowing
+      # which of the two happened is the difference between a five-second fix
+      # and a hunt.
       - name: Check the deploy role is configured
         env:
           ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          # The comparison, not the value: a boolean is not a secret, so this
+          # neither leaks the ARN nor trips the log masker.
+          SET_AS_SECRET: ${{ secrets.AWS_DEPLOY_ROLE_ARN != '' }}
         run: |
-          if [ -z "$ROLE_ARN" ]; then
-            echo "::error::Repository variable AWS_DEPLOY_ROLE_ARN is not set. See 'Deploying from GitHub Actions' in README.md."
-            exit 1
+          if [ -n "$ROLE_ARN" ]; then
+            echo "Deploying as $ROLE_ARN"
+            exit 0
           fi
+          if [ "$SET_AS_SECRET" = "true" ]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN is set as a *secret*, but this workflow reads it as a *variable*. Re-add it under Settings → Secrets and variables → Actions → the Variables tab, and delete the secret."
+          else
+            echo "::error::AWS_DEPLOY_ROLE_ARN is set as neither a repository variable nor a secret. Add it under Settings → Secrets and variables → Actions → the Variables tab (an environment-scoped variable will not do: this job declares no environment). See 'Deploying from GitHub Actions' in README.md."
+          fi
+          exit 1
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
