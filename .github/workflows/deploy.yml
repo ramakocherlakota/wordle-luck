@@ -60,16 +60,25 @@ jobs:
           # neither leaks the ARN nor trips the log masker.
           SET_AS_SECRET: ${{ secrets.AWS_DEPLOY_ROLE_ARN != '' }}
         run: |
-          if [ -n "$ROLE_ARN" ]; then
-            echo "Deploying as $ROLE_ARN"
-            exit 0
+          if [ -z "$ROLE_ARN" ]; then
+            if [ "$SET_AS_SECRET" = "true" ]; then
+              echo "::error::AWS_DEPLOY_ROLE_ARN is set as a *secret*, but this workflow reads it as a *variable*. Re-add it under Settings → Secrets and variables → Actions → the Variables tab, and delete the secret."
+            else
+              echo "::error::AWS_DEPLOY_ROLE_ARN is set as neither a repository variable nor a secret. Add it under Settings → Secrets and variables → Actions → the Variables tab (an environment-scoped variable will not do: this job declares no environment). See 'Deploying from GitHub Actions' in README.md."
+            fi
+            exit 1
           fi
-          if [ "$SET_AS_SECRET" = "true" ]; then
-            echo "::error::AWS_DEPLOY_ROLE_ARN is set as a *secret*, but this workflow reads it as a *variable*. Re-add it under Settings → Secrets and variables → Actions → the Variables tab, and delete the secret."
-          else
-            echo "::error::AWS_DEPLOY_ROLE_ARN is set as neither a repository variable nor a secret. Add it under Settings → Secrets and variables → Actions → the Variables tab (an environment-scoped variable will not do: this job declares no environment). See 'Deploying from GitHub Actions' in README.md."
+          # A malformed ARN is not obviously different from a good one by eye —
+          # a single stray space inside it is enough. STS calls that "Request
+          # ARN is invalid", and configure-aws-credentials treats it as a
+          # transient fault and retries it twelve times over 83 seconds before
+          # failing, without ever printing the value it was given. Check the
+          # shape here instead, where it can be shown.
+          if [[ ! "$ROLE_ARN" =~ ^arn:aws:iam::[0-9]{12}:role/[^[:space:]]+$ ]]; then
+            echo "::error::AWS_DEPLOY_ROLE_ARN is not a well-formed role ARN: '$ROLE_ARN'. Expected arn:aws:iam::<12-digit account id>:role/<name>, with no spaces. Fix it under Settings → Secrets and variables → Actions → the Variables tab."
+            exit 1
           fi
-          exit 1
+          echo "Deploying as $ROLE_ARN"
 
       - uses: aws-actions/configure-aws-credentials@v6
         with:
