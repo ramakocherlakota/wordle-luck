@@ -191,6 +191,15 @@ Which repository and branch may assume the role stays in the trust policy file,
 and it admits exactly one thing: a workflow in this repository running against
 `refs/heads/main`. A run from a branch or a fork gets no credentials.
 
+The `sub` it matches carries numeric ids — `ramakocherlakota@9009159` and
+`wordle-luck@1328107909` — because this account has GitHub's immutable subject
+claim turned on, which names the owner and repository by id as well as by name
+so that renaming or recreating either cannot be used to inherit the old one's
+access. The ids are what the token actually presents, so the policy has to spell
+them out; they were read off a real token rather than guessed. Turning that
+setting off would drop them from the claim and the trust policy would have to
+drop them too.
+
 **2. Point the workflow at the role.** In the repository's
 Settings → Secrets and variables → Actions → Variables, add a variable named
 `AWS_DEPLOY_ROLE_ARN` with the role's ARN
@@ -198,6 +207,22 @@ Settings → Secrets and variables → Actions → Variables, add a variable nam
 rather than a secret because an ARN is not one, and an unmasked value is far
 easier to debug. The deploy job stops with a pointer to this section if it is
 missing.
+
+### If a run fails to assume the role
+
+`Not authorized to perform sts:AssumeRoleWithWebIdentity` is all AWS says, and
+it says exactly that whether the `sub` does not match, the `aud` does not match,
+or the role is not there at all. The workflow answers the first of those itself:
+on failure it prints the claims the token actually carried. Compare them with
+
+```bash
+aws iam get-role --role-name wordle-luck-deploy \
+  --query Role.AssumeRolePolicyDocument
+```
+
+and if the `sub` has drifted, correct it in the trust policy file and re-run
+`./infra/setup-github-oidc.sh`, which pushes the change with
+`update-assume-role-policy`.
 
 ### If the first run fails on permissions
 
