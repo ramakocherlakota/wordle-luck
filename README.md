@@ -157,6 +157,69 @@ npm run typecheck
 npm run build && npm run preview # production build + local preview
 ```
 
+## Deploying from GitHub Actions
+
+`.github/workflows/deploy.yml` runs `infra/deploy.sh` on every push to `main`,
+and on demand from the Actions tab, once the checks in `.github/workflows/ci.yml`
+have passed. The script is unchanged and still the thing to run by hand; the
+workflow only arranges for it to run on a clean checkout with credentials.
+
+Credentials come from GitHub's OIDC provider, so there is no AWS key stored in
+the repository — the runner mints a short-lived token and AWS trades it for role
+credentials that expire with the job. That needs three one-time things in the
+AWS account. Substitute your account ID for `<AWS_ACCOUNT_ID>` in both policy
+files first.
+
+**1. Teach AWS about GitHub's OIDC provider** (skip if the account has it
+already — `aws iam list-open-id-connect-providers` will say):
+
+```bash
+aws iam create-open-id-connect-provider \
+  --url https://token.actions.githubusercontent.com \
+  --client-id-list sts.amazonaws.com
+```
+
+**2. Create the role the workflow assumes:**
+
+```bash
+aws iam create-role \
+  --role-name wordle-luck-deploy \
+  --assume-role-policy-document file://infra/github-oidc-trust-policy.json
+
+aws iam put-role-policy \
+  --role-name wordle-luck-deploy \
+  --policy-name wordle-luck-deploy \
+  --policy-document file://infra/github-oidc-permissions-policy.json
+```
+
+The trust policy admits exactly one thing: a workflow in this repository running
+against `refs/heads/main`. A run from a branch or a fork gets no credentials.
+
+**3. Point the workflow at the role.** In the repository's
+Settings → Secrets and variables → Actions → Variables, add a variable named
+`AWS_DEPLOY_ROLE_ARN` with the role's ARN
+(`arn:aws:iam::<AWS_ACCOUNT_ID>:role/wordle-luck-deploy`). It is a variable
+rather than a secret because an ARN is not one, and an unmasked value is far
+easier to debug. The deploy job stops with a pointer to this section if it is
+missing.
+
+### If the first run fails on permissions
+
+`infra/github-oidc-permissions-policy.json` is scoped to this stack, this
+bucket and this hosted zone, and it was written from what the template and the
+script ask for rather than from a real run — the first deploy may still turn up
+an action it does not grant. CloudFormation names the missing action in the
+stack events, so add it and re-run. Tightening it is easier afterwards than
+guessing at it beforehand.
+
+### If you add an environment
+
+The workflow deliberately does not use a GitHub `environment:`. Adding one
+changes the OIDC subject claim to
+`repo:ramakocherlakota/wordle-luck:environment:<name>`, so the `sub` condition
+in the trust policy has to change with it or every deploy fails to assume the
+role.
+
 ## Icons
 
 `public/favicon.svg` is the source of truth. After editing it, regenerate the

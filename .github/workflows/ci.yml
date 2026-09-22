@@ -1,0 +1,36 @@
+# The checks a change has to pass, in one place.
+#
+# Called two ways: directly, on every pull request, and by `deploy.yml` as the
+# gate in front of a production deploy. Keeping it a `workflow_call` rather than
+# copying the steps means a deploy can never run a weaker set of checks than a
+# pull request did.
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run lint
+
+      - run: npm run typecheck
+
+      # Vitest watches by default; `--run` makes it a single pass.
+      - name: Test
+        run: npm run test -- --run
+
+      # Catches what `tsc -b` alone does not — a Vite build that fails on an
+      # asset or an import the type checker was happy with.
+      - run: npm run build

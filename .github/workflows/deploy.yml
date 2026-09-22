@@ -1,0 +1,68 @@
+# Build wordle-luck and put it live at https://luck.ramakocherlakota.net/.
+#
+# The work itself is `infra/deploy.sh`, unchanged and still the thing to run by
+# hand — this only arranges for it to run on a clean checkout with credentials.
+# Setting up the AWS side is documented under "Deploying from GitHub Actions" in
+# README.md; without it the deploy job stops at the guard step below.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# One deploy at a time. A queued run waits rather than cancelling the one in
+# flight: a deploy that stops between the S3 upload and the CloudFront
+# invalidation leaves the site serving a mix of two builds.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Nothing ships that a pull request would not have been allowed to merge.
+  check:
+    uses: ./.github/workflows/ci.yml
+
+  deploy:
+    needs: check
+    runs-on: ubuntu-latest
+    permissions:
+      # Lets the runner mint the OIDC token that AWS trades for role credentials.
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      # Without this the run would fail several steps later inside the AWS SDK,
+      # with an error about the credential chain rather than about the setup
+      # step that was actually missed.
+      - name: Check the deploy role is configured
+        env:
+          ROLE_ARN: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+        run: |
+          if [ -z "$ROLE_ARN" ]; then
+            echo "::error::Repository variable AWS_DEPLOY_ROLE_ARN is not set. See 'Deploying from GitHub Actions' in README.md."
+            exit 1
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: wordle-luck-deploy
+          # CloudFront's certificate has to live here, and the rest of the stack
+          # is here with it.
+          aws-region: us-east-1
+
+      # Deploys the stack, builds, uploads to S3, invalidates CloudFront, and
+      # prints the site URL.
+      - run: ./infra/deploy.sh
