@@ -64,11 +64,17 @@ them being the answer — holding one image per theme it was shot in:
 ```
 test-pix/trice-salon-whump-spine-snipe/{not-,}high-contrast-{not-,}dark.jpg
 test-pix/trice-salon-whomp-booze-evoke-geode/high-contrast-dark.jpg
+test-pix/stare-cream-pager/not-high-contrast-dark.jpg
+test-pix/trice-salon-usury/high-contrast-dark.jpg
 ```
 
 The first game is there in all four dark/high-contrast combinations. The second
 is there for its answer: `geode` is not on the bundled answer list, which used
-to take the whole board down with it (see the solver note below).
+to take the whole board down with it (see the solver note below). The third has
+more present tiles than absent ones, which once got the two colours read the
+wrong way round. The fourth is a whole phone screen, browser chrome and all, and
+is there for Safari's bottom toolbar, whose round buttons are tile-shaped enough
+to have been read as a seventh row.
 
 `realScreenshots.test.ts` derives what it expects from the directory name and
 the scoring rules, so adding a game is a matter of dropping in the directory and
@@ -105,7 +111,7 @@ solver — only one of them has real words that produce those colors.
 actually arrive in — 296×640, 40px tiles, JPEG — a tile will sometimes split
 into a rim and a core, or blend into the neighbor it shares a color with, and
 losing one tile used to lose its whole row. But the board is rigid: five
-columns, one pitch, one tile size. So the tiles that survive segmentation are
+columns, one pitch, one tile size — and at most six rows, on that same pitch. So the tiles that survive segmentation are
 used only to fit that lattice, and then every cell is read straight from the
 image at its predicted position. A tile that segmentation mangled is read
 anyway, from where its neighbors say it has to be.

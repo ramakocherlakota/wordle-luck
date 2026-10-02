@@ -30,6 +30,16 @@ export interface Tile {
 /** Wordle is always five letters wide. */
 export const COLUMNS = 5;
 
+/** …and never more than six guesses deep. */
+export const MAX_ROWS = 6;
+
+/**
+ * How far a band may sit from a lattice row and still be one, as a fraction of
+ * the row pitch. A real row sits within a few pixels of its slot; anything
+ * else that happens to be tile-shaped lands wherever the page put it.
+ */
+const LATTICE_TOLERANCE = 0.3;
+
 /** Work at this resolution; big enough to keep inter-tile gaps open. */
 const DETECT_MAX_DIM = 1200;
 
@@ -376,6 +386,55 @@ export function groupIntoRows(tiles: Tile[]): Tile[][] {
 }
 
 /**
+ * Keep the bands that are rows of this board, top to bottom.
+ *
+ * A band only has to hold one tile-shaped region in a board column to be read
+ * as a row, which is what lets a row that segmentation mangled still be read.
+ * But a phone screenshot has other tile-shaped things in it: Safari's bottom
+ * toolbar is a row of round buttons about a tile across, and one of them sits
+ * close enough under the first column to count. Read as a row, it came last —
+ * so it was taken for the winning row, and the absent grey it happens to match
+ * was taken for "correct", and every word on the board came out wrong.
+ *
+ * The board settles it, as it does the columns: Wordle spaces its rows exactly
+ * as it spaces its columns, and there are never more than six. So a row has to
+ * sit on that pitch, counted from a row segmentation did complete, and the
+ * board is the run of six slots holding the most complete rows, then the most
+ * bands. The toolbar sits nine and a half pitches below the first row: half a
+ * slot off the lattice, and three slots past the last row the board can have.
+ */
+function onLattice(
+  bandYs: number[],
+  rows: Tile[][],
+  columns: number[],
+): number[] {
+  const pitch = (columns[COLUMNS - 1]! - columns[0]!) / (COLUMNS - 1);
+  const origin = median(rows[0]!.map(centerY));
+  const slot = (y: number) => Math.round((y - origin) / pitch);
+
+  const slotted = bandYs.filter(
+    (y) => Math.abs(y - origin - slot(y) * pitch) <= pitch * LATTICE_TOLERANCE,
+  );
+  const complete = rows.map((row) => slot(median(row.map(centerY))));
+
+  let best: number[] = [];
+  let bestComplete = -1;
+  for (const first of slotted.map(slot)) {
+    const inWindow = (k: number) => k >= first && k < first + MAX_ROWS;
+    const held = complete.filter(inWindow).length;
+    const window = slotted.filter((y) => inWindow(slot(y)));
+    if (
+      held > bestComplete ||
+      (held === bestComplete && window.length > best.length)
+    ) {
+      best = window;
+      bestComplete = held;
+    }
+  }
+  return best.sort((a, b) => a - b);
+}
+
+/**
  * Find the board and read every cell of it.
  *
  * Segmentation alone is not dependable enough at the size real screenshots come
@@ -418,20 +477,21 @@ export function detectBoard(source: RgbaImage): Tile[][] {
     else bands.get(key)!.push(y);
   }
 
-  return [...bands.values()]
-    .map((band) => median(band))
-    .sort((a, b) => a - b)
-    .map((y) =>
-      columns.map((x) => {
-        const box = {
-          x0: Math.round(x - half),
-          y0: Math.round(y - half),
-          x1: Math.round(x + half),
-          y1: Math.round(y + half),
-        };
-        return { ...box, rgb: sampleFill(source, box) };
-      }),
-    );
+  return onLattice(
+    [...bands.values()].map((band) => median(band)),
+    rows,
+    columns,
+  ).map((y) =>
+    columns.map((x) => {
+      const box = {
+        x0: Math.round(x - half),
+        y0: Math.round(y - half),
+        x1: Math.round(x + half),
+        y1: Math.round(y + half),
+      };
+      return { ...box, rgb: sampleFill(source, box) };
+    }),
+  );
 }
 
 /**

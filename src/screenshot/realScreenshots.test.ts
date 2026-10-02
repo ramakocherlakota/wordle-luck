@@ -21,7 +21,7 @@ import { answerList } from '../data/wordLists';
 import { scoreGuess } from '../score';
 import { fontTemplates } from '../test/boardFixture';
 import { loadScreenshot } from '../test/screenshotFile';
-import { COLUMNS, detectBoard } from './grid';
+import { COLUMNS, MAX_ROWS, detectBoard } from './grid';
 import { parseBoardImage, type ParsedScreenshot } from './parseScreenshot';
 
 /**
@@ -198,6 +198,54 @@ describe('a screenshot of a board with more present tiles than absent ones', () 
   });
 
   it('reads the answer out of the winning row and flags it as unlisted', () => {
+    expect(result.target).toBe(TARGET);
+    expect(result.targetIsAnswer).toBe(false);
+  });
+});
+
+/**
+ * A fourth real game, and the first screenshot taken the way most will be: the
+ * whole phone screen, browser chrome and all, rather than cropped to the board.
+ *
+ * Safari's bottom toolbar is a row of round buttons, each about a tile across,
+ * and round is square enough: they pass every shape test a tile does, and one
+ * sits close enough under the first column to count as on the board. Read as
+ * a row, the toolbar came last, so it was taken for the winning row. Its grey
+ * matches the absent grey closely enough to share a colour group, so absent
+ * then meant "correct", and the board came back as four words, none of them
+ * played. Rows now have to sit on the board's own pitch, six at most, and the
+ * toolbar is nowhere near either.
+ */
+describe('a full-screen screenshot with the browser toolbar under the board', () => {
+  const GAME = 'trice-salon-usury';
+  const GUESSES = GAME.split('-');
+  const TARGET = GUESSES[GUESSES.length - 1]!;
+  const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
+  const image = loadScreenshot(`${GAME}/high-contrast-dark`);
+
+  it('finds the six rows of the board and nothing below it', () => {
+    const rows = detectBoard(image);
+    // Three played, three still empty — and not the toolbar as a seventh.
+    expect(rows).toHaveLength(MAX_ROWS);
+    const pitch = rows[1]![0]!.y0 - rows[0]![0]!.y0;
+    rows.forEach((row, i) => {
+      // Evenly spaced, as a lattice row has to be.
+      expect(Math.abs(row[0]!.y0 - rows[0]![0]!.y0 - i * pitch)).toBeLessThan(
+        pitch * 0.1,
+      );
+    });
+  });
+
+  const result = parseBoardImage(image, { templates: TEMPLATES });
+
+  it('reads every row as the word that was played', () => {
+    expect(result.guesses).toEqual(GUESSES);
+    expect(result.patterns).toEqual(PATTERNS);
+    expect(result.unresolved).toEqual([]);
+  });
+
+  it('reads the answer, which the shipped list also lacks', () => {
+    expect(answerList).not.toContain(TARGET);
     expect(result.target).toBe(TARGET);
     expect(result.targetIsAnswer).toBe(false);
   });
