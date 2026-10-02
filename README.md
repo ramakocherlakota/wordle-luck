@@ -149,6 +149,90 @@ Known limits:
 Anything the parser gets wrong is editable — it fills the same inputs you would
 have typed, and nothing is submitted until you press Submit.
 
+## Plausible answers from a guess list
+
+`src/data/guesses-v2.ts` holds the 14,855 guesses Wordle accepts today. Very few
+of them could ever be the answer. The NYT does not publish its answer list, so
+`tools/plausible-answers/` works out which ones could be, from the answers the
+editors have already picked. Rerun it whenever the guess list changes:
+
+```bash
+pip install -r tools/plausible-answers/requirements.txt
+python tools/plausible-answers/plausible_answers.py \
+  --guesses src/data/guesses-v2.ts \
+  --answers src/data/answers.ts --pool src/data/guesses.ts \
+  --history tools/plausible-answers/nyt-answers.txt \
+  --block tools/plausible-answers/blocklist.txt \
+  --allow tools/plausible-answers/allowlist.txt \
+  --out tools/plausible-answers
+```
+
+It writes three files:
+
+- `plausible-answers.txt`, the list itself.
+- `review.txt`, common words the rules turned away that a person should look at.
+- `scores.csv` (not committed), every guess with its score, its verdict and
+  every feature.
+
+The first run downloads a few NLTK corpora.
+
+It has two stages, because some exclusions are a matter of kind rather than
+degree, and no amount of frequency should overturn them.
+
+**Rules.** These are what each rule excludes from the 14,855 guesses, and what
+it would have cost among the 2,377 answers known so far (the original 2,315,
+plus NYT picks through 2026-10-01):
+
+| A word is excluded if it is…                                                                                                   | excludes | known answers it would exclude                                     |
+| ------------------------------------------------------------------------------------------------------------------------------ | -------: | ------------------------------------------------------------------ |
+| not a lowercase word in WordNet or the Unix word list, nor an inflection of one (rules out names, slang, junk such as `padou`) |    6,071 | 21, mostly too new for either (`emoji`, `ramen`, `rehab`, `admin`) |
+| a first name the Unix list happens to have lowercase (`colin`, a quail)                                                        |       74 | 3: `roger`, `ralph`, `willy`                                       |
+| a regular plural (`cats`, `menus`, `wives`)                                                                                    |    2,941 | 0                                                                  |
+| a regular past tense (`baked`), but not `-ied` (`dried`, `fried`, `tried` are answers)                                         |      488 | 7: `freed`, `steed`, `clued`, `bused`, `unfed`, `kneed`, `abled`   |
+| offensive in every WordNet sense                                                                                               |       15 | 1: `bawdy`                                                         |
+
+Plurals are the clean case: not one has ever been the answer. Past tenses are
+nearly as clean, once `-ied` is let through. Irregular forms (`began`, `wrote`,
+`women`, `geese`) and comparatives (`wider`, `safer`) are answers, so they are
+left to the ranking.
+
+**Ranking.** Among words that pass, a logistic regression learns from the
+known answers, against the eligible guesses never picked. Its features are how
+common the word is (`wordfreq`) and whether WordNet has it. Then how often it
+turns up in sense-tagged text, how many senses it has, and its parts of speech.
+Finally, how often it is written as a name, which is measured by how often it
+is capitalised mid-sentence across NLTK's cased corpora.
+
+**Threshold.** The cut is set on cross-validated scores, so every known answer
+is scored by a model that never saw it. `--recall 0.99`, the default, admits
+any word that scores at least as well as the bottom 1% of real answers did. The
+honest test is the 62 answers the NYT has set from outside the original list.
+The run prints the trade-off:
+
+| `--recall` | new words admitted | of the 62 NYT off-list picks, admitted |
+| ---------: | -----------------: | -------------------------------------: |
+|       0.95 |                424 |                               41 (66%) |
+|       0.97 |                583 |                               47 (76%) |
+|       0.99 |              1,001 |                               54 (87%) |
+|      0.995 |              1,293 |                               58 (94%) |
+
+The editors' newer picks lean further into the obscure than the original list
+did (`kefir`, `gofer`, `pshaw`, `loris` are the ones 0.99 misses), which is why
+the default is set this high.
+
+**Hand-kept lists.** `blocklist.txt` holds what a dictionary cannot catch.
+Names it lists for some obscure lowercase sense (`henry` is a unit, `japan` a
+lacquer). Vulgar words with one innocent sense. Foreign words. `allowlist.txt`
+admits words too new for the dictionaries. It is seeded from `review.txt` with
+suggestions only (`promo`, `chemo`, `ebook`, `synth`), so prune it to taste.
+
+**Answer history.** `nyt-answers.txt` lists every NYT answer from 2022-11-07,
+when the NYT began editing the list, to 2026-10-01. The answers come from
+`https://www.nytimes.com/svc/wordle/v2/YYYY-MM-DD.json`. Append new days as
+they are played. Every word in it is always included, and every word is trained
+on. Two words in it have already come round a second time (`sandy`, `smile`),
+so past answers are no longer safe to drop.
+
 ## Lint / format / typecheck
 
 ```bash

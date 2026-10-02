@@ -1,0 +1,5 @@
+# Pinned so a rerun on the same inputs gives the same list.
+nltk==3.10.3
+numpy==2.4.6
+scikit-learn==1.9.1
+wordfreq==3.1.1

@@ -1,0 +1,8 @@
+# Words to admit whatever the rules and the model say. Use it for words too new
+# for the dictionaries the rules rely on (WordNet, and the Unix word list), which
+# the tool lists in review.txt for a person to judge.
+#
+# These are suggestions, picked from review.txt by eye as everyday words an
+# editor might choose. Slang (gonna, sorta), names, plurals and past tenses were
+# left out.
+biker celeb chemo droid ebook forex homie kiddo pinot promo synth taser yikes

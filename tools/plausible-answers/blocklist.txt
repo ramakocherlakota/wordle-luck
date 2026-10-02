@@ -1,0 +1,20 @@
+# Words never to admit, whatever their score. The rules and the model can't
+# catch these: each is a lowercase dictionary word, but the dictionary sense is
+# not the one people know. Hand-kept; add to it as new lists turn up more.
+
+# Vulgar, sexual or slurs, where some dictionary sense is innocent
+bimbo bitch boner busty chink dildo fagot fatso labia negro panty penis pinko
+porno pussy raper sambo skank spick squaw titty vulva whore
+
+# Names of people, places and brands, which a dictionary lists for an obscure
+# lowercase sense (henry, a unit; japan, a lacquer)
+acton babel barra benny bilbo bowie brant britt brent bundy burke calif
+chevy chile ching cisco cleve congo conte costa curie degas derry dhoni diddy
+dixie donna erica fermi gemma hafiz hakim henry hogan honda horst hurst jenny
+judas kapur kiley kraft kylie leone levis liang liman lindy logie lohan lotte
+macon malik maria mavis mirza molly monte morin parma perry prius purdy rogan
+rohan roman sabin seine sheng shiva silva snell sodom soler surat swiss tammy
+terry tesla timon torah vardy weber wigan xerox yahoo zaire zaman
+
+# Not English words, or not words
+aller causa culpa dixit ecole fille folie hasta kinda liber ligne mille salle ville xviii
