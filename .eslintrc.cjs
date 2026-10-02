@@ -30,6 +30,7 @@ module.exports = {
     'node_modules',
     'src/data/answers.ts',
     'src/data/guesses.ts',
+    'src/data/guesses-v2.ts',
     '.eslintrc.cjs',
   ],
 };

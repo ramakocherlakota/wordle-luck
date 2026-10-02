@@ -7,6 +7,7 @@ import {
 } from './wordLists';
 import { answerWords } from './answers';
 import { guessWords } from './guesses';
+import { guessWordsV2 } from './guesses-v2';
 
 describe('wordLists', () => {
   it('answerList is sorted, de-duplicated, and covers all answers', () => {
@@ -39,6 +40,20 @@ describe('wordLists', () => {
   it('guessSet is sorted and de-duplicated', () => {
     expect(guessSet).toEqual([...guessSet].sort());
     expect(guessSet.length).toBe(new Set(guessSet).size);
+  });
+
+  // Not wired into the app until wordle-svc's database knows these words; this
+  // only keeps the extracted file honest in the meantime.
+  it('guessWordsV2 is a clean superset of the current guess set', () => {
+    expect(guessWordsV2).toHaveLength(14855);
+    expect(guessWordsV2).toEqual([...guessWordsV2].sort());
+    expect(new Set(guessWordsV2).size).toBe(guessWordsV2.length);
+    expect(guessWordsV2.every((w) => /^[a-z]{5}$/.test(w))).toBe(true);
+
+    const v2 = new Set(guessWordsV2);
+    expect(guessSet.filter((w) => !v2.has(w))).toEqual([]);
+    // Answers Wordle has set since the bundled answer list was made.
+    for (const w of ['geode', 'pager', 'usury']) expect(v2.has(w)).toBe(true);
   });
 
   describe('buildFirstLetterIndex + filterByPrefix', () => {
