@@ -270,6 +270,80 @@ logarithms. `create-db.sh` fills it with Perl's `log`, which is the natural
 log, while the service computes every other uncertainty in bits, so on a
 database built that way each luck figure subtracts bits from nats.
 
+### Putting the database on EFS
+
+The database has to be on EFS before an app that asks for it is deployed.
+Otherwise every rating fails, because the service cannot open the file. EFS
+cannot be uploaded to from the console. The file has to be copied in from a
+machine that mounts the file system, and the simplest is a temporary EC2
+instance.
+
+**1. Find the file system.** The site sends ratings to the `wordle-pal-svc`
+Lambda in us-east-1 (CloudFront's `ApiOriginDomain` in `infra/template.yaml`).
+Ask the Lambda which access point, subnets and security groups it uses:
+
+```bash
+aws sts get-caller-identity --query Account
+aws lambda get-function-configuration --function-name wordle-pal-svc --region us-east-1 \
+  --query '{accessPoint: FileSystemConfigs[0].Arn, mountedAt: FileSystemConfigs[0].LocalMountPath,
+            subnets: VpcConfig.SubnetIds, securityGroups: VpcConfig.SecurityGroupIds}'
+aws efs describe-access-points --region us-east-1 --access-point-id fsap-... \
+  --query 'AccessPoints[0].{fileSystem: FileSystemId, root: RootDirectory.Path}'
+```
+
+If the EFS console shows no file systems, you are probably signed into a
+different account from the one the Lambda runs in. Compare the account ID in
+the console's top-right corner with the first command's output, and check the
+region is us-east-1.
+
+**2. Launch an instance that can reach it.** Use Amazon Linux 2023, in the same
+VPC as the Lambda, with the Lambda's security group (which already reaches the
+EFS mount targets) and a 20 GB disk. Connect with EC2 Instance Connect. Pick a
+public subnet of that VPC if the Lambda's own subnet has no route out, because
+the instance needs the internet to fetch this repository.
+
+**3. Mount the file system** through the Lambda's access point, so the
+instance sees exactly the directory the Lambda sees at `/mnt/efs`:
+
+```bash
+sudo dnf install -y amazon-efs-utils git
+sudo mkdir -p /mnt/efs
+sudo mount -t efs -o tls,accesspoint=fsap-... fs-...:/ /mnt/efs
+ls -la /mnt/efs        # all-wordle.sqlite should be here
+```
+
+**4. Build the database on the instance and copy it in.** Building on the
+instance saves uploading 3.4 GB. Build on the local disk first: building
+straight onto EFS is far slower.
+
+```bash
+git clone https://github.com/ramakocherlakota/wordle-luck && cd wordle-luck
+python3 tools/wordle-svc-db/build_db.py \
+  --answers tools/plausible-answers/plausible-answers.txt \
+  --guesses src/data/guesses-v2.ts \
+  --out /tmp/plausible-wordle.sqlite
+sudo cp /tmp/plausible-wordle.sqlite /mnt/efs/
+ls -la /mnt/efs
+```
+
+To use a database built elsewhere instead, upload it to S3 and
+`aws s3 cp` it down on the instance (the instance then needs an instance
+profile that can read the object).
+
+**5. Terminate the instance**, then check that the service can open the file.
+Call the Lambda the site uses directly. The dev server's `/service` proxy
+points at a different function URL, so it cannot confirm this:
+
+```bash
+curl -s -X POST https://kxk4tebf2oubdbadxazw5uuvma0dvfpe.lambda-url.us-east-1.on.aws/ \
+  -H 'Content-Type: application/json' \
+  -d '{"operation":"rate_solution","targets":["kefir"],"guesses":["soare","kefir"],"sequence":false,"hard_mode":false,"count":1,"sqlite_dbname":"plausible-wordle.sqlite"}'
+```
+
+It should return a `by_target.kefir` array of ratings. An HTTP 500 that names
+a path that does not exist means the file is not where the Lambda looks. Only
+once this works should you deploy the app that names the new database.
+
 ## Lint / format / typecheck
 
 ```bash
