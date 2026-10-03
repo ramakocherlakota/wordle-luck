@@ -316,10 +316,12 @@ def main():
         # cv scores come from models that never saw the word: an honest test.
         caught = [w for w in beyond if w in cv and cv[w] >= threshold]
         missed = sorted(set(beyond) - set(caught), key=lambda w: cv.get(w, 0))
-        print(f'past answers beyond --answers: {len(beyond)}; the cross-validated model would have'
-              f' admitted {len(caught)} ({len(caught) / len(beyond):.0%})')
+        print(f'test of the threshold: of the {len(beyond)} past answers beyond --answers, a model that'
+              f' never saw them would have admitted {len(caught)} ({len(caught) / len(beyond):.0%}).'
+              f' All {len(beyond)} are in the list anyway, as past answers.')
         if missed:
-            print('  missed:', ' '.join(f'{w}:{cv[w]:.2f}' if w in cv else f'{w}:ineligible' for w in missed))
+            print('  the model alone would have missed:',
+                  ' '.join(f'{w}:{cv[w]:.2f}' if w in cv else f'{w}:ineligible' for w in missed))
 
 
 if __name__ == '__main__':
