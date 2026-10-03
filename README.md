@@ -297,10 +297,30 @@ the console's top-right corner with the first command's output, and check the
 region is us-east-1.
 
 **2. Launch an instance that can reach it.** Use Amazon Linux 2023, in the same
-VPC as the Lambda, with the Lambda's security group (which already reaches the
-EFS mount targets) and a 20 GB disk. Connect with EC2 Instance Connect. Pick a
-public subnet of that VPC if the Lambda's own subnet has no route out, because
-the instance needs the internet to fetch this repository.
+VPC as the Lambda, with a 20 GB disk. Connect with EC2 Instance Connect. Three
+things have to be true, or Instance Connect fails with nothing more than
+"unable to connect":
+
+- **A public IP**, in a subnet whose route table sends `0.0.0.0/0` to an
+  internet gateway. The Lambda's own subnet may well be private. If so, launch
+  in a public subnet of the same VPC with "Auto-assign public IP" on. The
+  instance also needs that route to fetch this repository.
+- **Inbound SSH from Instance Connect.** The browser session comes from AWS's
+  Instance Connect range (`18.206.107.24/29` in us-east-1), not from your
+  machine, and must be allowed in on port 22.
+- **The Lambda's security group as well**, which is what EFS lets in.
+
+So give the instance two security groups: the Lambda's, and one that admits
+SSH from Instance Connect:
+
+```bash
+aws ec2 create-security-group --region us-east-1 --vpc-id vpc-... \
+  --group-name instance-connect-ssh --description 'SSH from EC2 Instance Connect'
+aws ec2 authorize-security-group-ingress --region us-east-1 --group-id sg-NEW \
+  --protocol tcp --port 22 --cidr 18.206.107.24/29
+aws ec2 modify-instance-attribute --region us-east-1 --instance-id i-... \
+  --groups sg-LAMBDA sg-NEW
+```
 
 **3. Mount the file system** through the Lambda's access point, so the
 instance sees exactly the directory the Lambda sees at `/mnt/efs`:
