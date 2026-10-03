@@ -236,6 +236,33 @@ they are played. Every word in it is always included, and every word is trained
 on. Two words in it have already come round a second time (`sandy`, `smile`),
 so past answers are no longer safe to drop.
 
+## Rebuilding the wordle-svc database
+
+wordle-svc reads every score from a SQLite database on EFS, one row per
+(answer, guess) pair. `tools/wordle-svc-db/build_db.py` builds one from any two
+word lists, computing the scores itself, with the same tables and indexes as
+wordle-pal's `db/create-db.sh`. It needs only Python's standard library:
+
+```bash
+python3 tools/wordle-svc-db/build_db.py \
+  --answers tools/plausible-answers/plausible-answers.txt \
+  --guesses src/data/guesses-v2.ts \
+  --out plausible-wordle.sqlite
+```
+
+On those lists that is 3,391 answers × 14,855 guesses, 50.4M rows and 3.4 GB,
+built in about three minutes. Its scorer agrees with `compute-scores.py`, the
+one the existing databases were built with, on every pair checked (7.2M).
+
+The service opens whichever file a request names in `sqlite_dbname`, so a new
+database goes alongside the old one on EFS and needs no Lambda deploy. The app
+switches over when it sends the new name.
+
+One deliberate difference from `create-db.sh`: `log2_lookup` holds base-2
+logarithms. `create-db.sh` fills it with Perl's `log`, which is the natural
+log, while the service computes every other uncertainty in bits, so on a
+database built that way each luck figure subtracts bits from nats.
+
 ## Lint / format / typecheck
 
 ```bash
