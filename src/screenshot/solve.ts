@@ -88,8 +88,9 @@ const UNRESOLVED_PENALTY = 100;
  * puts the word that was really played first every time, ahead of the runner-up
  * by 0.09 to 0.13. A penalty inside that band is therefore the whole useful
  * range: below it and a close contest stops going to the answer list, above it
- * and a board the list cannot explain — `geode`, `pager` — is dragged onto a
- * listed lookalike, which is the worse failure of the two.
+ * and a board the list cannot explain (`geode` and `pager`, against the lists
+ * this app first shipped) is dragged onto a listed lookalike, which is the
+ * worse failure of the two.
  */
 const UNLISTED_TARGET_PENALTY = 0.1;
 

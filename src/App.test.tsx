@@ -219,13 +219,13 @@ describe('App — screenshot upload', () => {
     // back whole — the word is right there in the last guess — but the target
     // box only takes words it can offer, so it is left for the user.
     await uploadScreenshot(user, {
-      target: 'geode',
+      target: 'oxlip',
       targetIsAnswer: false,
-      guesses: ['soare', 'geode'],
-      patterns: ['-w-w-', 'bbbbb'],
+      guesses: ['soare', 'oxlip'],
+      patterns: ['-w---', 'bbbbb'],
     });
 
-    expect(await screen.findByLabelText('Guess 2')).toHaveValue('geode');
+    expect(await screen.findByLabelText('Guess 2')).toHaveValue('oxlip');
     expect(screen.getByLabelText('Target answer')).toHaveValue('');
     expect(screen.getByRole('button', { name: /submit/i })).toBeDisabled();
   });

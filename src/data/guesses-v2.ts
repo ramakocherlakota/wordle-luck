@@ -1,8 +1,7 @@
 // AUTO-GENERATED from NYT Wordle's games-assets/v2/2499.741023595cc453a638af.js
 // (fetched 2026-10-02). Do not edit by hand.
 // 14855 five-letter lowercase words: the game's full allowed-guess list.
-// Not imported yet — wordle-svc's database must be rebuilt with these words
-// before the app can offer them, or games using them will read but not score.
+// wordle-svc's plausible-wordle.sqlite has every one of them as a guess.
 export const guessWordsV2: string[] = [
   'aahed',
   'aalii',

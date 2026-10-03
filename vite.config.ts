@@ -44,6 +44,7 @@ export default defineConfig(({ mode }) => {
           'src/data/answers.ts',
           'src/data/guesses.ts',
           'src/data/guesses-v2.ts',
+          'src/data/plausible-answers.ts',
           'src/types.ts',
         ],
       },

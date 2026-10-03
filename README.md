@@ -37,14 +37,18 @@ browser calls stay same-origin and avoid CORS in dev (mirrors the legacy
 `setupProxy.js`). Point the app elsewhere with `VITE_API_URL`, or change the
 proxy target with `VITE_PROXY_TARGET`.
 
-### Why `all-wordle.sqlite`
+### Why `plausible-wordle.sqlite`
 
-The app accepts the **union** of the answer list and the guess list as valid
-guesses, because common openers (`soare`, `adieu`, …) are valid guesses but not
-answers. Scoring those against the default `wordle.sqlite` DB fails, so every
-backend request sends `sqlite_dbname: "all-wordle.sqlite"` (the larger
-all-guesses scores DB). Its queries are slower — which is why the app always
-shows continuous waiting feedback during a rating call.
+The app accepts every guess the NYT game accepts (`src/data/guesses-v2.ts`,
+14,855 words) and offers as targets every word that could plausibly be the
+answer (`src/data/plausible-answers.ts`, 3,391 words; see
+[Plausible answers](#plausible-answers-from-a-guess-list)). Luck is measured
+against that answer list, so every backend request sends
+`sqlite_dbname: "plausible-wordle.sqlite"`, the database built from exactly
+those two lists (see
+[Rebuilding the wordle-svc database](#rebuilding-the-wordle-svc-database)). The
+two must stay in step: regenerate the answer list and rebuild the database
+together, or the app will offer words the service cannot score.
 
 ## Test
 
@@ -69,8 +73,10 @@ test-pix/trice-salon-usury/high-contrast-dark.jpg
 ```
 
 The first game is there in all four dark/high-contrast combinations. The second
-is there for its answer: `geode` is not on the bundled answer list, which used
-to take the whole board down with it (see the solver note below). The third has
+is there for its answer: `geode` was not on the answer list the app first
+shipped, which used to take the whole board down with it (see the solver note
+below). The app's lists have it now, so that test reads the board against the
+old lists to keep the case covered. The third has
 more present tiles than absent ones, which once got the two colours read the
 wrong way round. The fourth is a whole phone screen, browser chrome and all, and
 is there for Safari's bottom toolbar, whose round buttons are tile-shaped enough
@@ -142,7 +148,8 @@ Known limits:
 - **An unfinished game** has no all-correct row, so nothing pins down which
   color is which; the guesses are filled from shapes alone and the target is
   left blank. The same applies if something covers the winning row.
-- **An answer outside the bundled list** is read off the board like any other
+- **An answer outside the bundled list** (a word Wordle sets that the
+  plausible-answer list missed) is read off the board like any other
   word, and the guesses fill in as usual — but it can't be offered in the target
   box, so the summary names it and asks you to pick the answer yourself.
 
@@ -165,7 +172,7 @@ python3 -m venv .venv   # Python 3.10 or later
   --history tools/plausible-answers/nyt-answers.txt \
   --block tools/plausible-answers/blocklist.txt \
   --allow tools/plausible-answers/allowlist.txt \
-  --out tools/plausible-answers
+  --out tools/plausible-answers --ts src/data/plausible-answers.ts
 ```
 
 It writes three files:
@@ -375,13 +382,13 @@ Needs headless Chrome (override the path with `CHROME=`) and ImageMagick.
 
 ## Backend smoke test
 
-Confirm the backend answers and that `all-wordle.sqlite` supports non-answer
-guesses (run the dev server first so `/service` is proxied):
+Confirm the backend answers and that `plausible-wordle.sqlite` is in place and
+supports non-answer guesses (run the dev server first so `/service` is proxied):
 
 ```bash
 curl -s -X POST http://localhost:5173/service \
   -H 'Content-Type: application/json' \
-  -d '{"operation":"rate_solution","targets":["crane"],"guesses":["soare","crane"],"sequence":false,"hard_mode":false,"count":1,"sqlite_dbname":"all-wordle.sqlite"}'
+  -d '{"operation":"rate_solution","targets":["crane"],"guesses":["soare","crane"],"sequence":false,"hard_mode":false,"count":1,"sqlite_dbname":"plausible-wordle.sqlite"}'
 ```
 
 Expect HTTP 200 with a `by_target.crane` array of rating objects; `soare` (a

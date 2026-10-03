@@ -23,14 +23,14 @@ function endpointUrl(): string {
   return API_BASE;
 }
 
-/** Generous timeout — ratings against all-wordle.sqlite can take minutes. */
+/** Generous timeout — a cold start has to open a 3.4 GB database on EFS. */
 const TIMEOUT_MS = 900_000;
 
 /** Fields every request shares (see contracts/wordle-svc.md). */
 const COMMON = {
   sequence: false,
   hard_mode: false,
-  sqlite_dbname: 'all-wordle.sqlite',
+  sqlite_dbname: 'plausible-wordle.sqlite',
 } as const;
 
 /** An error carrying a human-readable message plus optional raw detail. */

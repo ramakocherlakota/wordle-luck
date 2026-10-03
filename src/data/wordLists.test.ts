@@ -8,33 +8,37 @@ import {
 import { answerWords } from './answers';
 import { guessWords } from './guesses';
 import { guessWordsV2 } from './guesses-v2';
+import { plausibleAnswers } from './plausible-answers';
 
 describe('wordLists', () => {
-  it('answerList is sorted, de-duplicated, and covers all answers', () => {
-    expect(answerList.length).toBe(new Set(answerWords).size);
-    const sorted = [...answerList].sort();
-    expect(answerList).toEqual(sorted);
+  it('answerList is sorted, de-duplicated, and every plausible answer', () => {
+    expect(answerList.length).toBe(new Set(plausibleAnswers).size);
+    expect(answerList).toEqual([...answerList].sort());
+    expect(answerList.every((w) => /^[a-z]{5}$/.test(w))).toBe(true);
     expect(answerList).toContain('crane');
   });
 
-  it('guessSet is the union of answers and guesses (FR-003 / SC-006)', () => {
-    const rawGuesses = new Set(guessWords);
-    // Find an answer that is NOT in the raw legacy guess list — the union must
-    // still make it selectable as a guess.
-    const missingAnswer = answerWords.find((w) => !rawGuesses.has(w));
-    expect(missingAnswer).toBeDefined();
-    expect(guessSet).toContain(missingAnswer);
-
-    // And a plain guess-only word is present too.
-    expect(guessSet).toContain('soare');
-
-    // Union size == number of distinct words across both lists.
-    const expected = new Set([...answerWords, ...guessWords]).size;
-    expect(guessSet.length).toBe(expected);
-    // guessSet is a superset of answers.
-    for (const a of answerList) {
-      expect(guessSet).toContain(a);
+  it('answerList keeps every original answer and the ones set since', () => {
+    const answers = new Set(answerList);
+    expect(answerWords.filter((w) => !answers.has(w))).toEqual([]);
+    // Set by the NYT after the original list was made.
+    for (const w of ['geode', 'pager', 'usury', 'kefir']) {
+      expect(answers.has(w)).toBe(true);
     }
+    // Allowed guesses, but no one's idea of an answer: plurals, past tenses,
+    // names, junk.
+    for (const w of ['cats', 'baked', 'james', 'padou']) {
+      expect(answers.has(w)).toBe(false);
+    }
+  });
+
+  it('guessSet is every guess the game accepts, answers included (FR-003 / SC-006)', () => {
+    expect(guessSet).toEqual(sortedUnion(guessWordsV2, plausibleAnswers));
+    // Openers that are guesses but not answers.
+    expect(guessSet).toContain('soare');
+    // Every answer is guessable.
+    const guesses = new Set(guessSet);
+    expect(answerList.filter((w) => !guesses.has(w))).toEqual([]);
   });
 
   it('guessSet is sorted and de-duplicated', () => {
@@ -42,18 +46,16 @@ describe('wordLists', () => {
     expect(guessSet.length).toBe(new Set(guessSet).size);
   });
 
-  // Not wired into the app until wordle-svc's database knows these words; this
-  // only keeps the extracted file honest in the meantime.
-  it('guessWordsV2 is a clean superset of the current guess set', () => {
+  it('guessWordsV2 is a clean superset of the old guess lists', () => {
     expect(guessWordsV2).toHaveLength(14855);
     expect(guessWordsV2).toEqual([...guessWordsV2].sort());
     expect(new Set(guessWordsV2).size).toBe(guessWordsV2.length);
     expect(guessWordsV2.every((w) => /^[a-z]{5}$/.test(w))).toBe(true);
 
     const v2 = new Set(guessWordsV2);
-    expect(guessSet.filter((w) => !v2.has(w))).toEqual([]);
-    // Answers Wordle has set since the bundled answer list was made.
-    for (const w of ['geode', 'pager', 'usury']) expect(v2.has(w)).toBe(true);
+    expect([...answerWords, ...guessWords].filter((w) => !v2.has(w))).toEqual(
+      [],
+    );
   });
 
   describe('buildFirstLetterIndex + filterByPrefix', () => {
@@ -89,3 +91,7 @@ describe('wordLists', () => {
     });
   });
 });
+
+function sortedUnion(...lists: string[][]): string[] {
+  return [...new Set(lists.flat())].sort();
+}

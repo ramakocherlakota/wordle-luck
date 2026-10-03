@@ -1,5 +1,5 @@
-import { answerWords } from './answers';
-import { guessWords } from './guesses';
+import { guessWordsV2 } from './guesses-v2';
+import { plausibleAnswers } from './plausible-answers';
 
 /** Case-insensitive ascending sort into a fresh de-duplicated array. */
 function sortedUnique(words: string[]): string[] {
@@ -7,22 +7,27 @@ function sortedUnique(words: string[]): string[] {
 }
 
 /**
- * All valid answers (sorted, de-duplicated). Source of TargetWord options.
+ * Every word that could be the answer (sorted, de-duplicated). Source of
+ * TargetWord options. The NYT does not publish its list, so this is the
+ * original 2,315 answers, every answer set since, and the guesses judged
+ * plausible as answers (see tools/plausible-answers). It must be the list
+ * `plausible-wordle.sqlite` was built from: luck is measured against it.
  */
-export const answerList: string[] = sortedUnique(answerWords);
+export const answerList: string[] = sortedUnique(plausibleAnswers);
 
 /**
- * Allowed guess set = de-duplicated **union** of answers and guesses (sorted).
- *
- * The legacy guess list omits some answers, so common answers wouldn't be
- * selectable as guesses. Taking the union guarantees every answer is guessable
- * (FR-003 / SC-006).
+ * Allowed guess set: every guess the game accepts, as of the NYT's current
+ * list, in union with the answers so every answer is guessable (FR-003 /
+ * SC-006) whatever either list says.
  */
-export const guessSet: string[] = sortedUnique([...answerWords, ...guessWords]);
+export const guessSet: string[] = sortedUnique([
+  ...plausibleAnswers,
+  ...guessWordsV2,
+]);
 
 /**
  * Group words by their first letter (each bucket sorted), enabling fast
- * prefix filtering in WordSelect over ~13k words.
+ * prefix filtering in WordSelect over ~15k words.
  */
 export function buildFirstLetterIndex(
   words: string[],

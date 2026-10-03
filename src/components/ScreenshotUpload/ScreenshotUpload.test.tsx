@@ -92,16 +92,16 @@ describe('ScreenshotUpload', () => {
   it('names an answer the answer list has not got', async () => {
     parseMock.mockResolvedValue({
       ...PARSED,
-      target: 'geode',
+      target: 'oxlip',
       targetIsAnswer: false,
-      guesses: ['adieu', 'geode'],
+      guesses: ['adieu', 'oxlip'],
     });
     render(<ScreenshotUpload onParsed={vi.fn()} />);
 
     await upload(imageFile());
 
     const status = await screen.findByRole('status');
-    expect(status).toHaveTextContent(/geode.*not on the answer list/i);
+    expect(status).toHaveTextContent(/oxlip.*not on the answer list/i);
     expect(status).toHaveTextContent(/pick the answer yourself/i);
   });
 

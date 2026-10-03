@@ -17,6 +17,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { answerWords } from '../data/answers';
+import { guessWords } from '../data/guesses';
 import { answerList } from '../data/wordLists';
 import { scoreGuess } from '../score';
 import { fontTemplates } from '../test/boardFixture';
@@ -31,6 +33,18 @@ import { parseBoardImage, type ParsedScreenshot } from './parseScreenshot';
  * matched against real antialiased Franklin Gothic.
  */
 const TEMPLATES = fontTemplates();
+
+/**
+ * The lists the app shipped before it took up the NYT's current ones. Several
+ * of these games were set by the NYT after those lists were made, so against
+ * them each answer is off the list, which is the case the games below were
+ * kept for. The app's own lists have every answer set so far, so these boards
+ * no longer exercise that case unaided.
+ */
+const ORIGINAL_LISTS = {
+  answers: [...new Set(answerWords)].sort(),
+  guesses: [...new Set([...answerWords, ...guessWords])].sort(),
+};
 
 /**
  * The first game, in all four combinations of Wordle's dark and high-contrast
@@ -124,7 +138,9 @@ describe.each(SCREENSHOTS)('a screenshot of $theme', (shot) => {
 
 /**
  * A second real game, kept for the one thing the first cannot show: Wordle set
- * `geode`, and the answer list this app ships predates it. Every row here used
+ * `geode`, and the answer list this app used to ship predated it. The app's
+ * lists have it now, so the board is read against those old lists to keep the
+ * case covered: an answer Wordle sets that no list has yet. Every row here used
  * to come out wrong — the solver could only explain the board by reading the
  * winning row as some listed answer it half-resembled, and the other five rows
  * were then re-read as whatever scored their colours against that wrong answer,
@@ -136,14 +152,17 @@ describe('a screenshot of a game whose answer is not on the answer list', () => 
   const TARGET = GUESSES[GUESSES.length - 1]!;
   const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
 
-  const result = parseBoardImage(loadScreenshot(`${GAME}/high-contrast-dark`), {
+  const image = loadScreenshot(`${GAME}/high-contrast-dark`);
+  const result = parseBoardImage(image, {
     templates: TEMPLATES,
+    lists: ORIGINAL_LISTS,
   });
 
   it('is a game the answer list cannot account for', () => {
     // The premise of everything below. `geode` is a legal *guess*, which is why
     // the board can be read at all — it is only barred from being the answer.
-    expect(answerList).not.toContain(TARGET);
+    expect(ORIGINAL_LISTS.answers).not.toContain(TARGET);
+    expect(ORIGINAL_LISTS.guesses).toContain(TARGET);
   });
 
   it('reads every row as the word that was played', () => {
@@ -155,6 +174,13 @@ describe('a screenshot of a game whose answer is not on the answer list', () => 
   it('reads the answer out of the winning row and flags it as unlisted', () => {
     expect(result.target).toBe(TARGET);
     expect(result.targetIsAnswer).toBe(false);
+  });
+
+  it('reads the same game as a listed answer against the app’s own lists', () => {
+    const own = parseBoardImage(image, { templates: TEMPLATES });
+    expect(own.guesses).toEqual(GUESSES);
+    expect(own.target).toBe(TARGET);
+    expect(own.targetIsAnswer).toBe(true);
   });
 });
 
@@ -172,8 +198,8 @@ describe('a screenshot of a game whose answer is not on the answer list', () => 
  * first is the one where the rarer colour means "present" — and this game, with
  * more yellows on it than greys, is exactly the one that prior gets backwards.
  *
- * The answer is also a word the shipped answer list has not got, like `geode`
- * above, so the board pins both halves of that at once.
+ * The answer is also a word the original answer list had not got, like `geode`
+ * above, so read against those lists the board pins both halves of that at once.
  */
 describe('a screenshot of a board with more present tiles than absent ones', () => {
   const GAME = 'stare-cream-pager';
@@ -181,10 +207,11 @@ describe('a screenshot of a board with more present tiles than absent ones', () 
   const TARGET = GUESSES[GUESSES.length - 1]!;
   const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
 
-  const result = parseBoardImage(
-    loadScreenshot(`${GAME}/not-high-contrast-dark`),
-    { templates: TEMPLATES },
-  );
+  const image = loadScreenshot(`${GAME}/not-high-contrast-dark`);
+  const result = parseBoardImage(image, {
+    templates: TEMPLATES,
+    lists: ORIGINAL_LISTS,
+  });
 
   it('reads the tile colours the way round the words account for', () => {
     // The whole board is two yellow-heavy rows over a solved one; read the
@@ -198,8 +225,17 @@ describe('a screenshot of a board with more present tiles than absent ones', () 
   });
 
   it('reads the answer out of the winning row and flags it as unlisted', () => {
+    expect(ORIGINAL_LISTS.answers).not.toContain(TARGET);
     expect(result.target).toBe(TARGET);
     expect(result.targetIsAnswer).toBe(false);
+  });
+
+  it('reads the same game as a listed answer against the app’s own lists', () => {
+    const own = parseBoardImage(image, { templates: TEMPLATES });
+    expect(own.patterns).toEqual(PATTERNS);
+    expect(own.guesses).toEqual(GUESSES);
+    expect(own.target).toBe(TARGET);
+    expect(own.targetIsAnswer).toBe(true);
   });
 });
 
@@ -244,10 +280,11 @@ describe('a full-screen screenshot with the browser toolbar under the board', ()
     expect(result.unresolved).toEqual([]);
   });
 
-  it('reads the answer, which the shipped list also lacks', () => {
-    expect(answerList).not.toContain(TARGET);
+  it('reads the answer, an answer set after the original list was made', () => {
+    expect(ORIGINAL_LISTS.answers).not.toContain(TARGET);
+    expect(answerList).toContain(TARGET);
     expect(result.target).toBe(TARGET);
-    expect(result.targetIsAnswer).toBe(false);
+    expect(result.targetIsAnswer).toBe(true);
   });
 });
 
