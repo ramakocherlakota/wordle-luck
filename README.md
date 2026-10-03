@@ -157,7 +157,7 @@ of them could ever be the answer. The NYT does not publish its answer list, so
 editors have already picked. Rerun it whenever the guess list changes:
 
 ```bash
-python3 -m venv .venv   # Python 3.11 or later
+python3 -m venv .venv   # Python 3.10 or later
 .venv/bin/python -m pip install -r tools/plausible-answers/requirements.txt
 .venv/bin/python tools/plausible-answers/plausible_answers.py \
   --guesses src/data/guesses-v2.ts \

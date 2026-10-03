@@ -1,6 +1,9 @@
-# Pinned so a rerun on the same inputs gives the same list. Needs Python 3.11+
-# (numpy and scikit-learn at these versions).
+# Pinned so a rerun on the same inputs gives the same list. Python 3.10 or
+# later. numpy and scikit-learn dropped 3.10 at these versions, so 3.10 gets
+# the last releases that support it; both sets give identical output.
 nltk==3.10.3
-numpy==2.4.6
-scikit-learn==1.9.1
+numpy==2.2.6; python_version < "3.11"
+numpy==2.4.6; python_version >= "3.11"
+scikit-learn==1.7.2; python_version < "3.11"
+scikit-learn==1.9.1; python_version >= "3.11"
 wordfreq==3.1.1
