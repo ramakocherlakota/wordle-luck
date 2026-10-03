@@ -157,8 +157,9 @@ of them could ever be the answer. The NYT does not publish its answer list, so
 editors have already picked. Rerun it whenever the guess list changes:
 
 ```bash
-pip install -r tools/plausible-answers/requirements.txt
-python tools/plausible-answers/plausible_answers.py \
+python3 -m venv .venv   # Python 3.11 or later
+.venv/bin/python -m pip install -r tools/plausible-answers/requirements.txt
+.venv/bin/python tools/plausible-answers/plausible_answers.py \
   --guesses src/data/guesses-v2.ts \
   --answers src/data/answers.ts --pool src/data/guesses.ts \
   --history tools/plausible-answers/nyt-answers.txt \
@@ -174,7 +175,9 @@ It writes three files:
 - `scores.csv` (not committed), every guess with its score, its verdict and
   every feature.
 
-The first run downloads a few NLTK corpora.
+The first run downloads a few NLTK corpora. Install with `python -m pip` rather than
+bare `pip`: on a Mac especially, `pip` often belongs to a different Python than
+`python`, and the script then cannot find what was installed.
 
 It has two stages, because some exclusions are a matter of kind rather than
 degree, and no amount of frequency should overturn them.

@@ -44,8 +44,9 @@ the report says how many of the past answers the cross-validated model would
 have admitted unaided, which is the honest test of the threshold.
 
 Usage (from the repository root):
-  pip install -r tools/plausible-answers/requirements.txt
-  python tools/plausible-answers/plausible_answers.py \\
+  python3 -m venv .venv            # Python 3.11 or later
+  .venv/bin/python -m pip install -r tools/plausible-answers/requirements.txt
+  .venv/bin/python tools/plausible-answers/plausible_answers.py \\
       --guesses src/data/guesses-v2.ts \\
       --answers src/data/answers.ts --pool src/data/guesses.ts \\
       --history tools/plausible-answers/nyt-answers.txt \\
@@ -55,7 +56,13 @@ Usage (from the repository root):
 """
 import argparse, collections, csv, math, os, re, sys
 
-import numpy as np
+try:
+    import nltk, numpy as np, sklearn, wordfreq  # noqa: F401
+except ModuleNotFoundError as e:
+    # Usually pip installed into a different Python from the one running this.
+    sys.exit(f"No module named '{e.name}' in {sys.executable}. Install the requirements into this\n"
+             f"same Python:\n  {sys.executable} -m pip install -r "
+             f"{os.path.join(os.path.dirname(os.path.abspath(__file__)), 'requirements.txt')}")
 
 SENTENCE_START = {'.', '!', '?', ':', ';', '"', "''", '``'}
 OFFENSIVE = re.compile(r'\b(offensive|obscene|vulgar|slur|disparaging|derogatory|contemptuous)\b')

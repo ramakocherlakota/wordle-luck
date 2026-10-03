@@ -1,4 +1,5 @@
-# Pinned so a rerun on the same inputs gives the same list.
+# Pinned so a rerun on the same inputs gives the same list. Needs Python 3.11+
+# (numpy and scikit-learn at these versions).
 nltk==3.10.3
 numpy==2.4.6
 scikit-learn==1.9.1
