@@ -279,6 +279,12 @@ reads the file this many times:
 Both layouts give identical ratings. `--layout rowid` still builds the old
 layout, for comparison.
 
+**The service needs SQLite 3.8.2 or later** to read this layout, which means
+wordle-svc's Lambda must run on the `python3.12` runtime or later (set
+`Runtime` in wordle-pal's `sam/template.yaml`). `python3.11` and earlier run on
+Amazon Linux 2, whose SQLite is 3.7.17, and every rating then fails with
+`malformed database schema (scores) - near "without": syntax error`.
+
 The service opens whichever file a request names in `sqlite_dbname`, so a new
 database goes alongside the old one on EFS and needs no Lambda deploy. The app
 switches over when it sends the new name.

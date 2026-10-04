@@ -23,6 +23,12 @@ the (guess, score) index carries the answer too. With 64 KB pages, a guess's
 rows take a page or two. --layout rowid builds create-db.sh's layout instead,
 for comparison.
 
+WITHOUT ROWID tables need SQLite 3.8.2 or later to read. On Lambda that means
+the python3.12 runtime or later: python3.11 and earlier run on Amazon Linux 2,
+whose SQLite is 3.7.17, and every query fails with "malformed database schema
+(scores) - near "without": syntax error". --layout rowid makes a file that
+SQLite reads too.
+
 log2_lookup holds base-2 logarithms. create-db.sh fills it with Perl's log(),
 which is the natural log, while the service measures every other uncertainty
 with math.log(x, 2), so a luck figure came out as a difference between nats
