@@ -247,8 +247,9 @@ so past answers are no longer safe to drop.
 
 wordle-svc reads every score from a SQLite database on EFS, one row per
 (answer, guess) pair. `tools/wordle-svc-db/build_db.py` builds one from any two
-word lists, computing the scores itself, with the same tables and indexes as
-wordle-pal's `db/create-db.sh`. It needs only Python's standard library:
+word lists, computing the scores itself, with the same tables and columns as
+wordle-pal's `db/create-db.sh`, so the service's queries run unchanged. It needs
+only Python's standard library:
 
 ```bash
 python3 tools/wordle-svc-db/build_db.py \
@@ -257,15 +258,32 @@ python3 tools/wordle-svc-db/build_db.py \
   --out plausible-wordle.sqlite
 ```
 
-On those lists that is 3,391 answers × 14,855 guesses, 50.4M rows and 3.4 GB,
+On those lists that is 3,391 answers × 14,855 guesses, 50.4M rows and 2.4 GB,
 built in about three minutes. Its scorer agrees with `compute-scores.py`, the
 one the existing databases were built with, on every pair checked (7.2M).
+
+**The layout is built for EFS**, where every page read is a network round
+trip. `create-db.sh`'s table keeps each score apart from the indexes that find
+it. Rating a guess against every answer then costs a separate read per answer,
+and a rating request took about 5 seconds every time. Here `scores` is a
+`WITHOUT ROWID` table clustered on `(guess, answer)`, so all of a guess's rows
+sit together with their scores. The `(guess, score)` index carries the answer
+as well, and pages are 64 KB. Run by wordle-svc's own handler, rating a game
+reads the file this many times:
+
+| Game                            | `create-db.sh` layout | this layout |
+| ------------------------------- | --------------------: | ----------: |
+| `soare edict`                   |                 6,683 |          80 |
+| `trice salon whump spine snipe` |                 7,034 |         228 |
+
+Both layouts give identical ratings. `--layout rowid` still builds the old
+layout, for comparison.
 
 The service opens whichever file a request names in `sqlite_dbname`, so a new
 database goes alongside the old one on EFS and needs no Lambda deploy. The app
 switches over when it sends the new name.
 
-One deliberate difference from `create-db.sh`: `log2_lookup` holds base-2
+One other deliberate difference from `create-db.sh`: `log2_lookup` holds base-2
 logarithms. `create-db.sh` fills it with Perl's `log`, which is the natural
 log, while the service computes every other uncertainty in bits, so on a
 database built that way each luck figure subtracts bits from nats.
@@ -368,10 +386,14 @@ sudo dnf install -y amazon-efs-utils
 sudo mkdir -p /mnt/efs
 sudo mount -t efs -o tls,accesspoint=fsap-... fs-...:/ /mnt/efs
 ls -la /mnt/efs        # all-wordle.sqlite should be here
-sudo aws s3 cp s3://wordle-pal-svc-code/db/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite
-ls -la /mnt/efs        # plausible-wordle.sqlite: 3428110336 bytes
+sudo aws s3 cp s3://wordle-pal-svc-code/db/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite.new
+sudo mv /mnt/efs/plausible-wordle.sqlite.new /mnt/efs/plausible-wordle.sqlite
+ls -la /mnt/efs        # plausible-wordle.sqlite: about 2.4 GB
 sudo umount /mnt/efs
 ```
+
+Copying to a new name and renaming replaces an existing database in one step,
+so the service never opens a half-copied file.
 
 If the mount hangs, the subnet's zone has no mount target, or the mount
 target's security group does not admit the Lambda's. If it fails to resolve
