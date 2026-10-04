@@ -275,82 +275,110 @@ database built that way each luck figure subtracts bits from nats.
 The database has to be on EFS before an app that asks for it is deployed.
 Otherwise every rating fails, because the service cannot open the file. EFS
 cannot be uploaded to from the console. The file has to be copied in from a
-machine that mounts the file system, and the simplest is a temporary EC2
-instance.
+machine that mounts the file system: here, a temporary EC2 instance that pulls
+the file from S3.
 
-**1. Find the file system.** The site sends ratings to the `wordle-pal-svc`
-Lambda in us-east-1 (CloudFront's `ApiOriginDomain` in `infra/template.yaml`).
-Ask the Lambda which access point, subnets and security groups it uses:
+**1. Build the database and upload it to S3**, from your own machine. Any
+bucket in us-east-1 will do; this uses the wordle-svc code bucket.
 
 ```bash
-aws sts get-caller-identity --query Account
-aws lambda get-function-configuration --function-name wordle-pal-svc --region us-east-1 \
-  --query '{accessPoint: FileSystemConfigs[0].Arn, mountedAt: FileSystemConfigs[0].LocalMountPath,
-            subnets: VpcConfig.SubnetIds, securityGroups: VpcConfig.SecurityGroupIds}'
-aws efs describe-access-points --region us-east-1 --access-point-id fsap-... \
-  --query 'AccessPoints[0].{fileSystem: FileSystemId, root: RootDirectory.Path}'
+python3 tools/wordle-svc-db/build_db.py \
+  --answers tools/plausible-answers/plausible-answers.txt \
+  --guesses src/data/guesses-v2.ts --out plausible-wordle.sqlite
+aws s3 cp plausible-wordle.sqlite s3://wordle-pal-svc-code/db/plausible-wordle.sqlite --region us-east-1
+```
+
+**2. Find the file system and the network it lives on.** The site sends ratings
+to the `wordle-pal-svc` Lambda in us-east-1 (CloudFront's `ApiOriginDomain` in
+`infra/template.yaml`). Ask the Lambda what it mounts, then where EFS can be
+reached from:
+
+```bash
+export AWS_REGION=us-east-1
+aws lambda get-function-configuration --function-name wordle-pal-svc \
+  --query '{accessPoint: FileSystemConfigs[0].Arn, subnets: VpcConfig.SubnetIds, securityGroups: VpcConfig.SecurityGroupIds}'
+aws efs describe-access-points --access-point-id fsap-... --query 'AccessPoints[0].FileSystemId'
+aws ec2 describe-subnets --subnet-ids subnet-LAMBDA --query 'Subnets[0].VpcId'
+aws efs describe-mount-targets --file-system-id fs-... \
+  --query 'MountTargets[].{az: AvailabilityZoneName, subnet: SubnetId, ip: IpAddress}'
+aws ec2 describe-subnets --filters Name=vpc-id,Values=vpc-... \
+  --query 'Subnets[].{id: SubnetId, az: AvailabilityZone, publicIpOnLaunch: MapPublicIpOnLaunch}'
+aws ec2 describe-route-tables --filters Name=vpc-id,Values=vpc-... \
+  --query 'RouteTables[].{subnets: Associations[].SubnetId, main: Associations[0].Main, routes: Routes[].GatewayId}'
 ```
 
 If the EFS console shows no file systems, you are probably signed into a
 different account from the one the Lambda runs in. Compare the account ID in
-the console's top-right corner with the first command's output, and check the
-region is us-east-1.
+the console's top-right corner with `aws sts get-caller-identity`.
 
-**2. Launch an instance that can reach it.** Use Amazon Linux 2023, in the same
-VPC as the Lambda, with a 20 GB disk. Connect with EC2 Instance Connect. Three
-things have to be true, or Instance Connect fails with nothing more than
-"unable to connect":
+Pick a **public subnet**, one whose route table has an `igw-...` route (a subnet
+with no route table of its own uses the one marked `main`). It must be **in an
+Availability Zone that has a mount target**. The Lambda's own subnet is usually
+private, which is why Instance Connect could not reach an instance there.
 
-- **A public IP**, in a subnet whose route table sends `0.0.0.0/0` to an
-  internet gateway. The Lambda's own subnet may well be private. If so, launch
-  in a public subnet of the same VPC with "Auto-assign public IP" on. The
-  instance also needs that route to fetch this repository.
-- **Inbound SSH from Instance Connect.** The browser session comes from AWS's
-  Instance Connect range (`18.206.107.24/29` in us-east-1), not from your
-  machine, and must be allowed in on port 22.
-- **The Lambda's security group as well**, which is what EFS lets in.
-
-So give the instance two security groups: the Lambda's, and one that admits
-SSH from Instance Connect:
+**3. Create a security group that lets EC2 Instance Connect in.** Instance
+Connect's browser sessions come from AWS's own addresses (`18.206.107.24/29`
+in us-east-1), not from your machine:
 
 ```bash
-aws ec2 create-security-group --region us-east-1 --vpc-id vpc-... \
+aws ec2 create-security-group --vpc-id vpc-... \
   --group-name instance-connect-ssh --description 'SSH from EC2 Instance Connect'
-aws ec2 authorize-security-group-ingress --region us-east-1 --group-id sg-NEW \
+aws ec2 authorize-security-group-ingress --group-id sg-NEW \
   --protocol tcp --port 22 --cidr 18.206.107.24/29
-aws ec2 modify-instance-attribute --region us-east-1 --instance-id i-... \
-  --groups sg-LAMBDA sg-NEW
 ```
 
-**3. Mount the file system** through the Lambda's access point, so the
-instance sees exactly the directory the Lambda sees at `/mnt/efs`:
+**4. Create a role that lets the instance read the file from S3:**
 
 ```bash
-sudo dnf install -y amazon-efs-utils git
+aws iam create-role --role-name wordle-db-upload --assume-role-policy-document \
+  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}'
+aws iam put-role-policy --role-name wordle-db-upload --policy-name read-db --policy-document \
+  '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":"s3:GetObject","Resource":"arn:aws:s3:::wordle-pal-svc-code/db/*"}]}'
+aws iam create-instance-profile --instance-profile-name wordle-db-upload
+aws iam add-role-to-instance-profile --instance-profile-name wordle-db-upload --role-name wordle-db-upload
+```
+
+**5. Launch the instance**, in the EC2 console with "Launch instance":
+
+- **Name**: `wordle-db-upload`. **AMI**: Amazon Linux 2023 (the default).
+  **Instance type**: `t3.micro`.
+- **Key pair**: "Proceed without a key pair". Instance Connect supplies its own.
+- **Network settings**, then **Edit**:
+  - **VPC**: the Lambda's.
+  - **Subnet**: the public one picked in step 2.
+  - **Auto-assign public IP**: Enable.
+  - **Firewall**: "Select existing security group", choosing both the Lambda's
+    group (EFS lets it in) and `instance-connect-ssh`.
+- **Storage**: the default 8 GB is enough, since the file goes straight from
+  S3 to EFS.
+- **Advanced details**, then **IAM instance profile**: `wordle-db-upload`.
+
+**6. Connect.** Select the instance once it is running, then **Connect**, the
+**EC2 Instance Connect** tab, user `ec2-user`, **Connect**. "Unable to connect"
+means one of steps 2, 3 or 5 is off: no public IP, no internet-gateway route,
+or no `instance-connect-ssh` group.
+
+**7. Mount EFS through the Lambda's access point and copy the file in.** The
+access point makes the instance see the directory the Lambda sees. Copy straight
+onto EFS: on Amazon Linux 2023 `/tmp` is held in memory and too small for the
+file.
+
+```bash
+sudo dnf install -y amazon-efs-utils
 sudo mkdir -p /mnt/efs
 sudo mount -t efs -o tls,accesspoint=fsap-... fs-...:/ /mnt/efs
 ls -la /mnt/efs        # all-wordle.sqlite should be here
+sudo aws s3 cp s3://wordle-pal-svc-code/db/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite
+ls -la /mnt/efs        # plausible-wordle.sqlite: 3428110336 bytes
+sudo umount /mnt/efs
 ```
 
-**4. Build the database on the instance and copy it in.** Building on the
-instance saves uploading 3.4 GB. Build on the local disk first: building
-straight onto EFS is far slower.
+If the mount hangs, the subnet's zone has no mount target, or the mount
+target's security group does not admit the Lambda's. If it fails to resolve
+`fs-....efs.us-east-1.amazonaws.com`, the VPC has DNS hostnames off. Add
+`,mounttargetip=` and the mount target's IP from step 2 to the `-o` options.
 
-```bash
-git clone https://github.com/ramakocherlakota/wordle-luck && cd wordle-luck
-python3 tools/wordle-svc-db/build_db.py \
-  --answers tools/plausible-answers/plausible-answers.txt \
-  --guesses src/data/guesses-v2.ts \
-  --out /tmp/plausible-wordle.sqlite
-sudo cp /tmp/plausible-wordle.sqlite /mnt/efs/
-ls -la /mnt/efs
-```
-
-To use a database built elsewhere instead, upload it to S3 and
-`aws s3 cp` it down on the instance (the instance then needs an instance
-profile that can read the object).
-
-**5. Terminate the instance**, then check that the service can open the file.
+**8. Check the service can open it**, from your own machine.
 Call the Lambda the site uses directly. The dev server's `/service` proxy
 points at a different function URL, so it cannot confirm this:
 
@@ -363,6 +391,17 @@ curl -s -X POST https://kxk4tebf2oubdbadxazw5uuvma0dvfpe.lambda-url.us-east-1.on
 It should return a `by_target.kefir` array of ratings. An HTTP 500 that names
 a path that does not exist means the file is not where the Lambda looks. Only
 once this works should you deploy the app that names the new database.
+
+**9. Clean up**: terminate the instance in the console, then
+
+```bash
+aws s3 rm s3://wordle-pal-svc-code/db/plausible-wordle.sqlite
+aws iam remove-role-from-instance-profile --instance-profile-name wordle-db-upload --role-name wordle-db-upload
+aws iam delete-instance-profile --instance-profile-name wordle-db-upload
+aws iam delete-role-policy --role-name wordle-db-upload --policy-name read-db
+aws iam delete-role --role-name wordle-db-upload
+aws ec2 delete-security-group --group-id sg-NEW   # once the instance has terminated
+```
 
 ## Lint / format / typecheck
 
