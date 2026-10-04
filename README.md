@@ -420,7 +420,8 @@ It should return a `by_target.kefir` array of ratings. An HTTP 500 that names
 a path that does not exist means the file is not where the Lambda looks. Only
 once this works should you deploy the app that names the new database.
 
-**9. Clean up**: terminate the instance in the console, then
+**9. Clean up**: terminate the instance in the console (or stop it, to keep it
+for next time: see below), then
 
 ```bash
 aws s3 rm s3://wordle-pal-svc-code/db/plausible-wordle.sqlite
@@ -430,6 +431,48 @@ aws iam delete-role-policy --role-name wordle-db-upload --policy-name read-db
 aws iam delete-role --role-name wordle-db-upload
 aws ec2 delete-security-group --group-id sg-NEW   # once the instance has terminated
 ```
+
+### Keeping the instance for next time
+
+Stopping the instance instead of terminating it keeps the setup for the next
+database change. It keeps its subnet, security groups, role and installed
+packages. A stopped instance costs only its 8 GB disk, about $0.65 a month.
+Its public IP is released on stop, so there is no IPv4 charge, and it gets a
+new one on start, which Instance Connect does not mind. Keep the
+`wordle-db-upload` role and instance profile and the `instance-connect-ssh`
+group if you do. Deleting the S3 copy is still fine.
+
+**Mount EFS at boot.** Run this once, so it is mounted whenever the instance
+starts. The `mounttargetip` is the mount target in the instance's own zone,
+and a stopped instance stays in its zone.
+
+```bash
+echo 'fs-...:/ /mnt/efs efs _netdev,tls,accesspoint=fsap-...,mounttargetip=... 0 0' | sudo tee -a /etc/fstab
+sudo mount -a && ls /mnt/efs
+```
+
+**Build on the instance**, which skips S3 altogether. It can reach GitHub, and
+`build_db.py` needs only the Python that Amazon Linux 2023 already has. It is
+slower on a small instance than on a laptop, but unattended. Build into the
+home directory rather than `/tmp`, which Amazon Linux 2023 holds in memory:
+
+```bash
+sudo dnf upgrade -y            # it falls behind while stopped
+sudo dnf install -y git        # first time only
+git clone https://github.com/ramakocherlakota/wordle-luck || git -C wordle-luck pull
+cd wordle-luck
+rm -f ~/plausible-wordle.sqlite
+python3 tools/wordle-svc-db/build_db.py \
+  --answers tools/plausible-answers/plausible-answers.txt \
+  --guesses src/data/guesses-v2.ts --out ~/plausible-wordle.sqlite
+sudo cp ~/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite.new
+sudo mv /mnt/efs/plausible-wordle.sqlite.new /mnt/efs/plausible-wordle.sqlite
+```
+
+Then run the check in step 8, and stop the instance again. If starting it fails
+for lack of capacity, which small instance types sometimes do in a busy zone,
+change its type while it is stopped (Actions, Instance settings, Change
+instance type), for example to `t3.micro`.
 
 ## Lint / format / typecheck
 
