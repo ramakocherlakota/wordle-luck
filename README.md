@@ -41,7 +41,7 @@ proxy target with `VITE_PROXY_TARGET`.
 
 The app accepts every guess the NYT game accepts (`src/data/guesses-v2.ts`,
 14,855 words) and offers as targets every word that could plausibly be the
-answer (`src/data/plausible-answers.ts`, 3,391 words; see
+answer (`src/data/plausible-answers.ts`, 3,456 words; see
 [Plausible answers](#plausible-answers-from-a-guess-list)). Luck is measured
 against that answer list, so every backend request sends
 `sqlite_dbname: "plausible-wordle.sqlite"`, the database built from exactly
@@ -190,8 +190,8 @@ It has two stages, because some exclusions are a matter of kind rather than
 degree, and no amount of frequency should overturn them.
 
 **Rules.** These are what each rule excludes from the 14,855 guesses, and what
-it would have cost among the 2,377 answers known so far (the original 2,315,
-plus NYT picks through 2026-10-01):
+it would have cost among the 2,382 answers known so far (the original 2,315,
+plus NYT picks through 2026-10-11):
 
 | A word is excluded if it is…                                                                                                   | excludes | known answers it would exclude                                     |
 | ------------------------------------------------------------------------------------------------------------------------------ | -------: | ------------------------------------------------------------------ |
@@ -216,18 +216,18 @@ is capitalised mid-sentence across NLTK's cased corpora.
 **Threshold.** The cut is set on cross-validated scores, so every known answer
 is scored by a model that never saw it. `--recall 0.99`, the default, admits
 any word that scores at least as well as the bottom 1% of real answers did. The
-honest test is the 62 answers the NYT has set from outside the original list.
+honest test is the 67 answers the NYT has set from outside the original list.
 The run prints the trade-off:
 
-| `--recall` | new words admitted | of the 62 NYT off-list picks, admitted |
+| `--recall` | new words admitted | of the 67 NYT off-list picks, admitted |
 | ---------: | -----------------: | -------------------------------------: |
-|       0.95 |                424 |                               41 (66%) |
-|       0.97 |                583 |                               47 (76%) |
-|       0.99 |              1,001 |                               54 (87%) |
-|      0.995 |              1,293 |                               58 (94%) |
+|       0.95 |                424 |                               46 (69%) |
+|       0.97 |                577 |                               51 (76%) |
+|       0.99 |              1,061 |                               58 (87%) |
+|      0.995 |              1,321 |                               62 (93%) |
 
 The editors' newer picks lean further into the obscure than the original list
-did (`kefir`, `gofer`, `pshaw`, `loris` are the ones 0.99 misses), which is why
+did (`kefir`, `gofer`, `pshaw`, `loris`, `uncap` are among the ones 0.99 misses), which is why
 the default is set this high.
 
 **Hand-kept lists.** `blocklist.txt` holds what a dictionary cannot catch.
@@ -237,7 +237,7 @@ admits words too new for the dictionaries. It is seeded from `review.txt` with
 suggestions only (`promo`, `chemo`, `ebook`, `synth`), so prune it to taste.
 
 **Answer history.** `nyt-answers.txt` lists every NYT answer from 2022-11-07,
-when the NYT began editing the list, to 2026-10-01. The answers come from
+when the NYT began editing the list, to 2026-10-11. The answers come from
 `https://www.nytimes.com/svc/wordle/v2/YYYY-MM-DD.json`. Append new days as
 they are played. Every word in it is always included, and every word is trained
 on. Two words in it have already come round a second time (`sandy`, `smile`),
@@ -258,7 +258,7 @@ python3 tools/wordle-svc-db/build_db.py \
   --out plausible-wordle.sqlite
 ```
 
-On those lists that is 3,391 answers × 14,855 guesses, 50.4M rows and 2.4 GB,
+On those lists that is 3,456 answers × 14,855 guesses, 51.3M rows and about 2.5 GB,
 built in about three minutes. Its scorer agrees with `compute-scores.py`, the
 one the existing databases were built with, on every pair checked (7.2M).
 
@@ -394,7 +394,7 @@ sudo mount -t efs -o tls,accesspoint=fsap-... fs-...:/ /mnt/efs
 ls -la /mnt/efs        # all-wordle.sqlite should be here
 sudo aws s3 cp s3://wordle-pal-svc-code/db/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite.new
 sudo mv /mnt/efs/plausible-wordle.sqlite.new /mnt/efs/plausible-wordle.sqlite
-ls -la /mnt/efs        # plausible-wordle.sqlite: about 2.4 GB
+ls -la /mnt/efs        # plausible-wordle.sqlite: about 2.5 GB
 sudo umount /mnt/efs
 ```
 
