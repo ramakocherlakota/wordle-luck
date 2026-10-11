@@ -96,6 +96,8 @@ def main():
                     help='SQLite page size in bytes (default 65536; see the docstring)')
     ap.add_argument('--layout', choices=['clustered', 'rowid'], default='clustered',
                     help="clustered (default) or rowid, create-db.sh's layout")
+    ap.add_argument('--cache-mb', type=int, default=200,
+                    help='SQLite page cache in MB (default 200, small enough for a 1 GB instance)')
     args = ap.parse_args()
 
     if os.path.exists(args.out):
@@ -111,19 +113,28 @@ def main():
           file=sys.stderr)
 
     start = time.time()
+    # Indexing sorts in temporary files. Put them beside the output: /tmp is
+    # held in memory on Amazon Linux 2023, and the sort would not fit.
+    os.environ['SQLITE_TMPDIR'] = os.path.dirname(os.path.abspath(args.out))
     db = sqlite3.connect(args.out)
     db.execute(f'pragma page_size = {args.page_size}')
-    db.executescript('pragma journal_mode = off; pragma synchronous = off; pragma cache_size = -1000000;')
+    db.executescript('pragma journal_mode = off; pragma synchronous = off; pragma temp_store = file;')
+    db.execute(f'pragma cache_size = -{args.cache_mb * 1024}')
     if args.layout == 'clustered':
         db.execute('create table scores(answer text, guess text, score text, '
                    'primary key (guess, answer)) without rowid')
     else:
         db.execute('create table scores(answer text, guess text, score text)')
     # Guess by guess, answers in order: the primary key's own order, so the
-    # clustered table is written front to back instead of all over.
+    # clustered table is written front to back instead of all over. A batch of
+    # guesses at a time, so the workers cannot score far ahead of the inserts
+    # and pile rows up in memory.
+    batch = 50
     with Pool(initializer=_init, initargs=(answers,)) as pool:
-        for n, rows in enumerate(pool.imap(_rows, guesses, chunksize=16), 1):
-            db.executemany('insert into scores values (?, ?, ?)', rows)
+        for i in range(0, len(guesses), batch):
+            for rows in pool.imap(_rows, guesses[i:i + batch], chunksize=5):
+                db.executemany('insert into scores values (?, ?, ?)', rows)
+            n = min(i + batch, len(guesses))
             if n % 2500 == 0 or n == len(guesses):
                 print(f'  {n}/{len(guesses)} guesses scored ({time.time() - start:.0f}s)', file=sys.stderr)
     db.commit()

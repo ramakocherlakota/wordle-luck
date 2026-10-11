@@ -258,7 +258,7 @@ python3 tools/wordle-svc-db/build_db.py \
   --out plausible-wordle.sqlite
 ```
 
-On those lists that is 3,456 answers × 14,855 guesses, 51.3M rows and about 2.5 GB,
+On those lists that is 3,456 answers × 14,855 guesses, 51.3M rows and 2.4 GB,
 built in about three minutes. Its scorer agrees with `compute-scores.py`, the
 one the existing databases were built with, on every pair checked (7.2M).
 
@@ -394,7 +394,7 @@ sudo mount -t efs -o tls,accesspoint=fsap-... fs-...:/ /mnt/efs
 ls -la /mnt/efs        # all-wordle.sqlite should be here
 sudo aws s3 cp s3://wordle-pal-svc-code/db/plausible-wordle.sqlite /mnt/efs/plausible-wordle.sqlite.new
 sudo mv /mnt/efs/plausible-wordle.sqlite.new /mnt/efs/plausible-wordle.sqlite
-ls -la /mnt/efs        # plausible-wordle.sqlite: about 2.5 GB
+ls -la /mnt/efs        # plausible-wordle.sqlite: about 2.4 GB
 sudo umount /mnt/efs
 ```
 
@@ -453,8 +453,10 @@ sudo mount -a && ls /mnt/efs
 
 **Build on the instance**, which skips S3 altogether. It can reach GitHub, and
 `build_db.py` needs only the Python that Amazon Linux 2023 already has. It is
-slower on a small instance than on a laptop, but unattended. Build into the
-home directory rather than `/tmp`, which Amazon Linux 2023 holds in memory:
+slower on a small instance than on a laptop, but unattended, and it fits in a
+`t3.micro`'s 1 GB: SQLite's cache is held to 200 MB (`--cache-mb`), and its
+sort files go beside the output. Build into the home directory rather than
+`/tmp`, which Amazon Linux 2023 holds in memory:
 
 ```bash
 sudo dnf upgrade -y            # it falls behind while stopped
