@@ -101,37 +101,15 @@
       "Resource": "*"
     },
     {
-      "Sid": "TheDatabaseUploadInS3",
-      "Effect": "Allow",
-      "Action": ["s3:PutObject", "s3:AbortMultipartUpload", "s3:DeleteObject"],
-      "Resource": "arn:aws:s3:::wordle-pal-svc-code/db/plausible-wordle.sqlite"
-    },
-    {
-      "Sid": "FindingInstancesTakesNoResource",
+      "Sid": "TheDatabaseBuilderFunctionOnly",
       "Effect": "Allow",
       "Action": [
-        "ec2:DescribeInstances",
-        "ssm:DescribeInstanceInformation",
-        "ssm:GetCommandInvocation"
+        "lambda:UpdateFunctionCode",
+        "lambda:GetFunction",
+        "lambda:GetFunctionConfiguration",
+        "lambda:InvokeFunction"
       ],
-      "Resource": "*"
-    },
-    {
-      "Sid": "StartStopAndRunOnTheUploadInstanceOnly",
-      "Effect": "Allow",
-      "Action": ["ec2:StartInstances", "ec2:StopInstances", "ssm:SendCommand"],
-      "Resource": "arn:aws:ec2:us-east-1:*:instance/*",
-      "Condition": {
-        "StringEquals": {
-          "aws:ResourceTag/Name": "wordle-db-upload"
-        }
-      }
-    },
-    {
-      "Sid": "RunningShellCommands",
-      "Effect": "Allow",
-      "Action": "ssm:SendCommand",
-      "Resource": "arn:aws:ssm:us-east-1::document/AWS-RunShellScript"
+      "Resource": "arn:aws:lambda:us-east-1:*:function:wordle-db-builder"
     }
   ]
 }

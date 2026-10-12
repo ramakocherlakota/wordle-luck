@@ -41,7 +41,7 @@ Usage (from the repository root; Python 3.8+, standard library only):
       --out plausible-wordle.sqlite
 """
 import argparse, math, os, re, sqlite3, sys, time
-from multiprocessing import Pool
+from multiprocessing import Pipe, Process
 
 
 def read_words(path):
@@ -74,16 +74,42 @@ def score(answer, guess):
     return ''.join(result)
 
 
-_answers = None
+def _score_batches(answers, batches, conn):
+    """A worker: score each batch of guesses against every answer, sending a
+    batch's scores, guess by guess, once the last one has been taken."""
+    for batch in batches:
+        conn.send([[score(a, g) for a in answers] for g in batch])
+    conn.close()
 
 
-def _init(answers):
-    global _answers
-    _answers = answers
+def scored_rows(answers, guesses, workers=None, batch=50):
+    """Every (answer, guess, score) row, a guess at a time and in guess order.
 
-
-def _rows(guess):
-    return [(a, guess, score(a, guess)) for a in _answers]
+    Batch k goes to worker k % workers and is read back in turn, so the
+    workers score in parallel, and each is at most a batch ahead of the
+    inserts: a send blocks until it is taken, so rows never pile up in memory.
+    Plain processes and pipes rather than multiprocessing.Pool, which needs
+    the POSIX semaphores AWS Lambda does not have.
+    """
+    batches = [guesses[i:i + batch] for i in range(0, len(guesses), batch)]
+    workers = max(1, min(workers or os.cpu_count() or 1, len(batches)))
+    conns, procs = [], []
+    try:
+        for w in range(workers):
+            recv, send = Pipe(duplex=False)
+            proc = Process(target=_score_batches, args=(answers, batches[w::workers], send), daemon=True)
+            proc.start()
+            send.close()
+            conns.append(recv)
+            procs.append(proc)
+        for k, batch in enumerate(batches):
+            for guess, scores in zip(batch, conns[k % workers].recv()):
+                yield [(a, guess, sc) for a, sc in zip(answers, scores)]
+    finally:
+        for proc in procs:
+            if proc.is_alive():
+                proc.terminate()
+            proc.join()
 
 
 def main():
@@ -99,13 +125,18 @@ def main():
     ap.add_argument('--cache-mb', type=int, default=200,
                     help='SQLite page cache in MB (default 200, small enough for a 1 GB instance)')
     args = ap.parse_args()
-
     if os.path.exists(args.out):
         sys.exit(f'{args.out} already exists')
-    answers = sorted(set(read_words(args.answers)))
+    build(args.answers, args.guesses, args.out,
+          page_size=args.page_size, layout=args.layout, cache_mb=args.cache_mb)
+
+
+def build(answers_path, guesses_path, out, page_size=65536, layout='clustered', cache_mb=200):
+    """Write the database to out, which must not exist yet."""
+    answers = sorted(set(read_words(answers_path)))
     # Every answer can be guessed, whether or not the guess list says so.
-    guesses = sorted(set(read_words(args.guesses)) | set(answers))
-    missing = set(answers) - set(read_words(args.guesses))
+    guesses = sorted(set(read_words(guesses_path)) | set(answers))
+    missing = set(answers) - set(read_words(guesses_path))
     if missing:
         print(f'note: {len(missing)} answers not in the guess list, added as guesses: '
               + ' '.join(sorted(missing)), file=sys.stderr)
@@ -115,32 +146,26 @@ def main():
     start = time.time()
     # Indexing sorts in temporary files. Put them beside the output: /tmp is
     # held in memory on Amazon Linux 2023, and the sort would not fit.
-    os.environ['SQLITE_TMPDIR'] = os.path.dirname(os.path.abspath(args.out))
-    db = sqlite3.connect(args.out)
-    db.execute(f'pragma page_size = {args.page_size}')
+    os.environ['SQLITE_TMPDIR'] = os.path.dirname(os.path.abspath(out))
+    db = sqlite3.connect(out)
+    db.execute(f'pragma page_size = {page_size}')
     db.executescript('pragma journal_mode = off; pragma synchronous = off; pragma temp_store = file;')
-    db.execute(f'pragma cache_size = -{args.cache_mb * 1024}')
-    if args.layout == 'clustered':
+    db.execute(f'pragma cache_size = -{cache_mb * 1024}')
+    if layout == 'clustered':
         db.execute('create table scores(answer text, guess text, score text, '
                    'primary key (guess, answer)) without rowid')
     else:
         db.execute('create table scores(answer text, guess text, score text)')
     # Guess by guess, answers in order: the primary key's own order, so the
-    # clustered table is written front to back instead of all over. A batch of
-    # guesses at a time, so the workers cannot score far ahead of the inserts
-    # and pile rows up in memory.
-    batch = 50
-    with Pool(initializer=_init, initargs=(answers,)) as pool:
-        for i in range(0, len(guesses), batch):
-            for rows in pool.imap(_rows, guesses[i:i + batch], chunksize=5):
-                db.executemany('insert into scores values (?, ?, ?)', rows)
-            n = min(i + batch, len(guesses))
-            if n % 2500 == 0 or n == len(guesses):
-                print(f'  {n}/{len(guesses)} guesses scored ({time.time() - start:.0f}s)', file=sys.stderr)
+    # clustered table is written front to back instead of all over.
+    for n, rows in enumerate(scored_rows(answers, guesses), 1):
+        db.executemany('insert into scores values (?, ?, ?)', rows)
+        if n % 2500 == 0 or n == len(guesses):
+            print(f'  {n}/{len(guesses)} guesses scored ({time.time() - start:.0f}s)', file=sys.stderr)
     db.commit()
 
     print('indexing...', file=sys.stderr)
-    if args.layout == 'clustered':
+    if layout == 'clustered':
         db.execute('create index idx_scores_guess_score on scores(guess, score)')
     else:
         db.executescript('create unique index idx_scores_guess_answer on scores(guess, answer);'
@@ -161,7 +186,7 @@ def main():
     db.execute('analyze')
     db.commit()
     db.close()
-    print(f'wrote {args.out}: {os.path.getsize(args.out) / 1e9:.2f} GB in {time.time() - start:.0f}s',
+    print(f'wrote {out}: {os.path.getsize(out) / 1e9:.2f} GB in {time.time() - start:.0f}s',
           file=sys.stderr)
 
 

@@ -77,7 +77,7 @@ jobs:
           role-session-name: wordle-luck-database
           aws-region: us-east-1
 
-      # Builds on the runner, copies onto EFS through the wordle-db-upload
-      # instance, and checks the service can rate the newest answer.
+      # Has the wordle-db-builder Lambda build the database onto EFS, and
+      # checks the service can rate the newest answer.
       - if: steps.changes.outputs.rebuild == 'true'
         run: ./infra/deploy-db.sh

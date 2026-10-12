@@ -296,6 +296,10 @@ database built that way each luck figure subtracts bits from nats.
 
 ### Putting the database on EFS
 
+A push to `main` that changes the lists now does this itself: see
+[Updating the database from GitHub Actions](#updating-the-database-from-github-actions).
+What follows is the manual route, by way of a temporary EC2 instance.
+
 The database has to be on EFS before an app that asks for it is deployed.
 Otherwise every rating fails, because the service cannot open the file. EFS
 cannot be uploaded to from the console. The file has to be copied in from a
@@ -479,40 +483,43 @@ instance type), for example to `t3.micro`.
 ### Updating the database from GitHub Actions
 
 `.github/workflows/database.yml` runs `infra/deploy-db.sh`, which does all of
-the above unattended. `deploy.yml` runs it after the checks and before the app
-deploy, so a new answer list is never live before its database. It rebuilds
-only when the push changed `plausible-answers.txt`, `guesses-v2.ts` or
-`build_db.py`; otherwise it does nothing. Run "Database" from the Actions tab
+the above with no instance. `deploy.yml` runs it after the checks and before
+the app deploy, so a new answer list is never live before its database. It
+rebuilds only when the push changed `plausible-answers.txt`, `guesses-v2.ts` or
+`build_db.py`, and otherwise does nothing. Run "Database" from the Actions tab
 to rebuild regardless.
 
-The script builds on the GitHub runner, where there is memory to spare, and
-uploads to S3. It starts the kept `wordle-db-upload` instance if it is stopped,
-and has it copy the file onto EFS through SSM Run Command, checking its sha256
-before renaming it over the live one. It then asks the service to rate the
-newest answer in `nyt-answers.txt`, deletes the S3 copy, and stops the
-instance again if it started it. A failure anywhere stops the app deploy too.
+The build runs in a Lambda, `wordle-db-builder`, that mounts the same EFS
+access point as wordle-svc. The script uploads it a code bundle holding
+`build_db.py`, `tools/wordle-svc-db/lambda_handler.py` and the current word
+lists, and invokes it. The Lambda builds into its own `/tmp` (10 GB of local
+disk), copies the file beside the live one on EFS, and renames it over it. With
+10 GB of memory it has 6 vCPUs and takes a few minutes, well inside Lambda's 15. The script then asks the service to rate the newest answer in
+`nyt-answers.txt`. A failure anywhere stops the app deploy too.
 
-It needs, once:
+`build_db.py` runs its workers on plain processes and pipes rather than
+`multiprocessing.Pool`, because Pool needs POSIX semaphores, which Lambda does
+not provide. The database it writes is byte-for-byte what Pool's did.
 
-- **The instance**, kept as described above, with its `Name` tag still
-  `wordle-db-upload`, EFS in `/etc/fstab`, and the `wordle-db-upload` role still
-  allowed to read `s3://wordle-pal-svc-code/db/*`.
-- **SSM on the instance.** Amazon Linux 2023 runs the agent already; its role
-  needs the permission to use it. Start the instance once afterwards, so the
-  agent picks up the new role:
+It needs, once, with credentials that can create IAM roles and functions:
 
-  ```bash
-  aws iam attach-role-policy --role-name wordle-db-upload \
-    --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
-  ```
+```bash
+./infra/setup-db-builder.sh   # creates the function and its role
+./infra/setup-github-oidc.sh  # lets the deploy role update and invoke it
+```
 
-- **The deploy role's new permissions.** Re-run `./infra/setup-github-oidc.sh`.
-  It adds what `infra/github-oidc-permissions-policy.json` now grants: writing
-  that one S3 object, and starting, stopping and running shell commands on
-  instances tagged `Name=wordle-db-upload`, and no others.
+`setup-db-builder.sh` reads wordle-svc's subnets, security groups and EFS
+access point from `wordle-pal-svc` itself, so there is nothing to look up. Its
+role may mount and write that one access point, and nothing else. If the
+account's Lambda memory limit is still the default 3,008 MB, run it with
+`MEMORY_MB=3008`: 2 vCPUs, still well inside 15 minutes. The deploy role gains
+exactly four permissions, all on that one function: update its code, read it,
+and invoke it.
 
-`./infra/deploy-db.sh` also runs by hand, with the same credentials, and
-`--db FILE` swaps in a database already built.
+`./infra/deploy-db.sh` also runs by hand, with the same credentials.
+
+The `wordle-db-upload` instance, its role and its security group are no longer
+needed once this has worked: step 9 above removes them.
 
 ## Lint / format / typecheck
 
