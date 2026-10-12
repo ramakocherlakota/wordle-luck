@@ -26,8 +26,17 @@ jobs:
   check:
     uses: ./.github/workflows/ci.yml
 
-  deploy:
+  # A new answer list needs its database live before the app that offers it.
+  # Does nothing unless the lists the database is built from have changed.
+  database:
     needs: check
+    uses: ./.github/workflows/database.yml
+    permissions:
+      id-token: write
+      contents: read
+
+  deploy:
+    needs: [check, database]
     runs-on: ubuntu-latest
     permissions:
       # Lets the runner mint the OIDC token that AWS trades for role credentials.

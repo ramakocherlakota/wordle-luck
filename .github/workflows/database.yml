@@ -1,0 +1,83 @@
+# Rebuild wordle-svc's plausible-wordle.sqlite and put it live on EFS, when the
+# lists it is built from have changed.
+#
+# The work itself is `infra/deploy-db.sh`, which can also be run by hand. This
+# runs it from `deploy.yml` ahead of the app deploy, so the site never offers
+# an answer the service cannot score, rebuilding only when the push changed
+# the lists. Run from the Actions tab, it rebuilds regardless. Setting up the
+# AWS side is "Updating the database from GitHub Actions" in README.md.
+name: Database
+
+on:
+  workflow_call:
+    inputs:
+      always:
+        description: Rebuild even if no list changed
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      always:
+        description: Rebuild even if no list changed
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+jobs:
+  database:
+    runs-on: ubuntu-latest
+    # One swap at a time, whichever way it was started.
+    concurrency:
+      group: deploy-database
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # The push's earlier commit, to see what changed since.
+          fetch-depth: 0
+
+      # What the database is built from, and what builds it. A push that
+      # touches none of these leaves the live database as it is. One whose
+      # earlier commit cannot be compared (after a force-push, say) rebuilds to
+      # be safe.
+      - name: Decide whether the database needs rebuilding
+        id: changes
+        env:
+          EVENT: ${{ github.event_name }}
+          BEFORE: ${{ github.event.before }}
+          ALWAYS: ${{ inputs.always }}
+        run: |
+          paths=(tools/plausible-answers/plausible-answers.txt src/data/guesses-v2.ts tools/wordle-svc-db/build_db.py)
+          if [ "$ALWAYS" = true ]; then
+            echo "Asked to rebuild"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          elif [ "$EVENT" != push ]; then
+            echo "Started by $EVENT with no push to compare: leaving the database as it is"
+            echo "rebuild=false" >> "$GITHUB_OUTPUT"
+          elif ! git cat-file -e "${BEFORE}^{commit}" 2>/dev/null; then
+            echo "No earlier commit to compare with: rebuilding"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          elif git diff --quiet "$BEFORE" HEAD -- "${paths[@]}"; then
+            echo "None of ${paths[*]} changed: leaving the database as it is"
+            echo "rebuild=false" >> "$GITHUB_OUTPUT"
+          else
+            git diff --stat "$BEFORE" HEAD -- "${paths[@]}"
+            echo "rebuild=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: aws-actions/configure-aws-credentials@v6
+        if: steps.changes.outputs.rebuild == 'true'
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          role-session-name: wordle-luck-database
+          aws-region: us-east-1
+
+      # Builds on the runner, copies onto EFS through the wordle-db-upload
+      # instance, and checks the service can rate the newest answer.
+      - if: steps.changes.outputs.rebuild == 'true'
+        run: ./infra/deploy-db.sh

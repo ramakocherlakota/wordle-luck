@@ -476,6 +476,44 @@ for lack of capacity, which small instance types sometimes do in a busy zone,
 change its type while it is stopped (Actions, Instance settings, Change
 instance type), for example to `t3.micro`.
 
+### Updating the database from GitHub Actions
+
+`.github/workflows/database.yml` runs `infra/deploy-db.sh`, which does all of
+the above unattended. `deploy.yml` runs it after the checks and before the app
+deploy, so a new answer list is never live before its database. It rebuilds
+only when the push changed `plausible-answers.txt`, `guesses-v2.ts` or
+`build_db.py`; otherwise it does nothing. Run "Database" from the Actions tab
+to rebuild regardless.
+
+The script builds on the GitHub runner, where there is memory to spare, and
+uploads to S3. It starts the kept `wordle-db-upload` instance if it is stopped,
+and has it copy the file onto EFS through SSM Run Command, checking its sha256
+before renaming it over the live one. It then asks the service to rate the
+newest answer in `nyt-answers.txt`, deletes the S3 copy, and stops the
+instance again if it started it. A failure anywhere stops the app deploy too.
+
+It needs, once:
+
+- **The instance**, kept as described above, with its `Name` tag still
+  `wordle-db-upload`, EFS in `/etc/fstab`, and the `wordle-db-upload` role still
+  allowed to read `s3://wordle-pal-svc-code/db/*`.
+- **SSM on the instance.** Amazon Linux 2023 runs the agent already; its role
+  needs the permission to use it. Start the instance once afterwards, so the
+  agent picks up the new role:
+
+  ```bash
+  aws iam attach-role-policy --role-name wordle-db-upload \
+    --policy-arn arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+  ```
+
+- **The deploy role's new permissions.** Re-run `./infra/setup-github-oidc.sh`.
+  It adds what `infra/github-oidc-permissions-policy.json` now grants: writing
+  that one S3 object, and starting, stopping and running shell commands on
+  instances tagged `Name=wordle-db-upload`, and no others.
+
+`./infra/deploy-db.sh` also runs by hand, with the same credentials, and
+`--db FILE` swaps in a database already built.
+
 ## Lint / format / typecheck
 
 ```bash
