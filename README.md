@@ -294,7 +294,175 @@ logarithms. `create-db.sh` fills it with Perl's `log`, which is the natural
 log, while the service computes every other uncertainty in bits, so on a
 database built that way each luck figure subtracts bits from nats.
 
-### Putting the database on EFS
+### Updating the database from GitHub Actions
+
+`.github/workflows/database.yml` runs `infra/deploy-db.sh`, which does all of
+the above with no instance. `deploy.yml` runs it after the checks and before
+the app deploy, so a new answer list is never live before its database. It
+rebuilds only when the push changed `plausible-answers.txt`, `guesses-v2.ts` or
+`build_db.py`, and otherwise does nothing. Run "Database" from the Actions tab
+to rebuild regardless.
+
+The build runs in a Lambda, `wordle-db-builder`, that mounts the same EFS
+access point as wordle-svc. The script uploads it a code bundle holding
+`build_db.py`, `tools/wordle-svc-db/lambda_handler.py` and the current word
+lists, and invokes it. The Lambda builds into its own `/tmp` (10 GB of local
+disk), copies the file beside the live one on EFS, and renames it over it. With
+10 GB of memory it has 6 vCPUs and takes a few minutes, well inside Lambda's 15. The script then asks the service to rate the newest answer in
+`nyt-answers.txt`. A failure anywhere stops the app deploy too.
+
+`build_db.py` runs its workers on plain processes and pipes rather than
+`multiprocessing.Pool`, because Pool needs POSIX semaphores, which Lambda does
+not provide. The database it writes is byte-for-byte what Pool's did.
+
+It needs, once, with credentials that can create IAM roles and functions:
+
+```bash
+./infra/setup-db-builder.sh   # creates the function and its role
+./infra/setup-github-oidc.sh  # lets the deploy role update and invoke it
+```
+
+`setup-db-builder.sh` reads wordle-svc's subnets, security groups and EFS
+access point from `wordle-pal-svc` itself, so there is nothing to look up. Its
+role may mount and write that one access point, and nothing else. If the
+account's Lambda memory limit is still the default 3,008 MB, run it with
+`MEMORY_MB=3008`: 2 vCPUs, still well inside 15 minutes. The deploy role gains
+exactly four permissions, all on that one function: update its code, read it,
+and invoke it.
+
+`./infra/deploy-db.sh` also runs by hand, with the same credentials.
+
+The `wordle-db-upload` instance, its role and its security group are no longer
+needed once this has worked: step 9 above removes them.
+
+## Lint / format / typecheck
+
+```bash
+npm run lint
+npm run format
+npm run typecheck
+```
+
+## Build
+
+```bash
+npm run build && npm run preview # production build + local preview
+```
+
+## Deploying from GitHub Actions
+
+`.github/workflows/deploy.yml` runs `infra/deploy.sh` on every push to `main`,
+and on demand from the Actions tab, once the checks in `.github/workflows/ci.yml`
+have passed. The script is unchanged and still the thing to run by hand; the
+workflow only arranges for it to run on a clean checkout with credentials.
+
+Credentials come from GitHub's OIDC provider, so there is no AWS key stored in
+the repository — the runner mints a short-lived token and AWS trades it for role
+credentials that expire with the job. Setting that up is two steps.
+
+**1. Create the role**, with credentials that can create IAM roles:
+
+```bash
+./infra/setup-github-oidc.sh
+```
+
+It registers GitHub's OIDC provider if the account has not got one, creates the
+`wordle-luck-deploy` role, attaches the deploy policy, and prints the role ARN
+for the next step. Re-running it is safe — each piece is created if missing and
+updated if not.
+
+The account ID goes in from `aws sts get-caller-identity` rather than being
+edited into the files by hand. Doing it by hand is the step that fails
+obscurely: IAM rejects an ARN with the placeholder still in it as
+`MalformedPolicyDocument ... failed legacy parsing`, which names neither the file
+nor the field. Only `infra/github-oidc-trust-policy.json` has a placeholder
+left, and only because an OIDC provider ARN cannot avoid one;
+`infra/github-oidc-permissions-policy.json` applies as it stands.
+
+Which repository and branch may assume the role stays in the trust policy file,
+and it admits exactly one thing: a workflow in this repository running against
+`refs/heads/main`. A run from a branch or a fork gets no credentials.
+
+The `sub` it matches carries numeric ids — `ramakocherlakota@9009159` and
+`wordle-luck@1328107909` — because this account has GitHub's immutable subject
+claim turned on, which names the owner and repository by id as well as by name
+so that renaming or recreating either cannot be used to inherit the old one's
+access. The ids are what the token actually presents, so the policy has to spell
+them out; they were read off a real token rather than guessed. Turning that
+setting off would drop them from the claim and the trust policy would have to
+drop them too.
+
+**2. Point the workflow at the role.** In the repository's
+Settings → Secrets and variables → Actions → Variables, add a variable named
+`AWS_DEPLOY_ROLE_ARN` with the role's ARN
+(the script prints it; `arn:aws:iam::<account>:role/wordle-luck-deploy`). It is a variable
+rather than a secret because an ARN is not one, and an unmasked value is far
+easier to debug. The deploy job stops with a pointer to this section if it is
+missing.
+
+### If a run fails to assume the role
+
+`Not authorized to perform sts:AssumeRoleWithWebIdentity` is all AWS says, and
+it says exactly that whether the `sub` does not match, the `aud` does not match,
+or the role is not there at all. The workflow answers the first of those itself:
+on failure it prints the claims the token actually carried. Compare them with
+
+```bash
+aws iam get-role --role-name wordle-luck-deploy \
+  --query Role.AssumeRolePolicyDocument
+```
+
+and if the `sub` has drifted, correct it in the trust policy file and re-run
+`./infra/setup-github-oidc.sh`, which pushes the change with
+`update-assume-role-policy`.
+
+### If the first run fails on permissions
+
+`infra/github-oidc-permissions-policy.json` is scoped to this stack, this
+bucket and this hosted zone, and it was written from what the template and the
+script ask for rather than from a real run — the first deploy may still turn up
+an action it does not grant. CloudFormation names the missing action in the
+stack events, so add it and re-run. Tightening it is easier afterwards than
+guessing at it beforehand.
+
+### If you add an environment
+
+The workflow deliberately does not use a GitHub `environment:`. Adding one
+changes the OIDC subject claim to
+`repo:ramakocherlakota/wordle-luck:environment:<name>`, so the `sub` condition
+in the trust policy has to change with it or every deploy fails to assume the
+role.
+
+## Icons
+
+`public/favicon.svg` is the source of truth. After editing it, regenerate the
+raster icons — Vite copies `public/` into `dist/` as-is, so they do not rebuild
+themselves:
+
+```bash
+./infra/gen-icons.sh    # rewrites public/favicon.ico + public/apple-touch-icon.png
+```
+
+Needs headless Chrome (override the path with `CHROME=`) and ImageMagick.
+
+## Backend smoke test
+
+Confirm the backend answers and that `plausible-wordle.sqlite` is in place and
+supports non-answer guesses (run the dev server first so `/service` is proxied):
+
+```bash
+curl -s -X POST http://localhost:5173/service \
+  -H 'Content-Type: application/json' \
+  -d '{"operation":"rate_solution","targets":["crane"],"guesses":["soare","crane"],"sequence":false,"hard_mode":false,"count":1,"sqlite_dbname":"plausible-wordle.sqlite"}'
+```
+
+Expect HTTP 200 with a `by_target.crane` array of rating objects; `soare` (a
+non-answer opener) must rate without a `score_guess` error.
+
+
+### Manually putting the database on EFS
+
+This shouldn't be necessary - the GHA workflow should just do it.
 
 A push to `main` that changes the lists now does this itself: see
 [Updating the database from GitHub Actions](#updating-the-database-from-github-actions).
@@ -480,170 +648,6 @@ for lack of capacity, which small instance types sometimes do in a busy zone,
 change its type while it is stopped (Actions, Instance settings, Change
 instance type), for example to `t3.micro`.
 
-### Updating the database from GitHub Actions
-
-`.github/workflows/database.yml` runs `infra/deploy-db.sh`, which does all of
-the above with no instance. `deploy.yml` runs it after the checks and before
-the app deploy, so a new answer list is never live before its database. It
-rebuilds only when the push changed `plausible-answers.txt`, `guesses-v2.ts` or
-`build_db.py`, and otherwise does nothing. Run "Database" from the Actions tab
-to rebuild regardless.
-
-The build runs in a Lambda, `wordle-db-builder`, that mounts the same EFS
-access point as wordle-svc. The script uploads it a code bundle holding
-`build_db.py`, `tools/wordle-svc-db/lambda_handler.py` and the current word
-lists, and invokes it. The Lambda builds into its own `/tmp` (10 GB of local
-disk), copies the file beside the live one on EFS, and renames it over it. With
-10 GB of memory it has 6 vCPUs and takes a few minutes, well inside Lambda's 15. The script then asks the service to rate the newest answer in
-`nyt-answers.txt`. A failure anywhere stops the app deploy too.
-
-`build_db.py` runs its workers on plain processes and pipes rather than
-`multiprocessing.Pool`, because Pool needs POSIX semaphores, which Lambda does
-not provide. The database it writes is byte-for-byte what Pool's did.
-
-It needs, once, with credentials that can create IAM roles and functions:
-
-```bash
-./infra/setup-db-builder.sh   # creates the function and its role
-./infra/setup-github-oidc.sh  # lets the deploy role update and invoke it
-```
-
-`setup-db-builder.sh` reads wordle-svc's subnets, security groups and EFS
-access point from `wordle-pal-svc` itself, so there is nothing to look up. Its
-role may mount and write that one access point, and nothing else. If the
-account's Lambda memory limit is still the default 3,008 MB, run it with
-`MEMORY_MB=3008`: 2 vCPUs, still well inside 15 minutes. The deploy role gains
-exactly four permissions, all on that one function: update its code, read it,
-and invoke it.
-
-`./infra/deploy-db.sh` also runs by hand, with the same credentials.
-
-The `wordle-db-upload` instance, its role and its security group are no longer
-needed once this has worked: step 9 above removes them.
-
-## Lint / format / typecheck
-
-```bash
-npm run lint
-npm run format
-npm run typecheck
-```
-
-## Build
-
-```bash
-npm run build && npm run preview # production build + local preview
-```
-
-## Deploying from GitHub Actions
-
-`.github/workflows/deploy.yml` runs `infra/deploy.sh` on every push to `main`,
-and on demand from the Actions tab, once the checks in `.github/workflows/ci.yml`
-have passed. The script is unchanged and still the thing to run by hand; the
-workflow only arranges for it to run on a clean checkout with credentials.
-
-Credentials come from GitHub's OIDC provider, so there is no AWS key stored in
-the repository — the runner mints a short-lived token and AWS trades it for role
-credentials that expire with the job. Setting that up is two steps.
-
-**1. Create the role**, with credentials that can create IAM roles:
-
-```bash
-./infra/setup-github-oidc.sh
-```
-
-It registers GitHub's OIDC provider if the account has not got one, creates the
-`wordle-luck-deploy` role, attaches the deploy policy, and prints the role ARN
-for the next step. Re-running it is safe — each piece is created if missing and
-updated if not.
-
-The account ID goes in from `aws sts get-caller-identity` rather than being
-edited into the files by hand. Doing it by hand is the step that fails
-obscurely: IAM rejects an ARN with the placeholder still in it as
-`MalformedPolicyDocument ... failed legacy parsing`, which names neither the file
-nor the field. Only `infra/github-oidc-trust-policy.json` has a placeholder
-left, and only because an OIDC provider ARN cannot avoid one;
-`infra/github-oidc-permissions-policy.json` applies as it stands.
-
-Which repository and branch may assume the role stays in the trust policy file,
-and it admits exactly one thing: a workflow in this repository running against
-`refs/heads/main`. A run from a branch or a fork gets no credentials.
-
-The `sub` it matches carries numeric ids — `ramakocherlakota@9009159` and
-`wordle-luck@1328107909` — because this account has GitHub's immutable subject
-claim turned on, which names the owner and repository by id as well as by name
-so that renaming or recreating either cannot be used to inherit the old one's
-access. The ids are what the token actually presents, so the policy has to spell
-them out; they were read off a real token rather than guessed. Turning that
-setting off would drop them from the claim and the trust policy would have to
-drop them too.
-
-**2. Point the workflow at the role.** In the repository's
-Settings → Secrets and variables → Actions → Variables, add a variable named
-`AWS_DEPLOY_ROLE_ARN` with the role's ARN
-(the script prints it; `arn:aws:iam::<account>:role/wordle-luck-deploy`). It is a variable
-rather than a secret because an ARN is not one, and an unmasked value is far
-easier to debug. The deploy job stops with a pointer to this section if it is
-missing.
-
-### If a run fails to assume the role
-
-`Not authorized to perform sts:AssumeRoleWithWebIdentity` is all AWS says, and
-it says exactly that whether the `sub` does not match, the `aud` does not match,
-or the role is not there at all. The workflow answers the first of those itself:
-on failure it prints the claims the token actually carried. Compare them with
-
-```bash
-aws iam get-role --role-name wordle-luck-deploy \
-  --query Role.AssumeRolePolicyDocument
-```
-
-and if the `sub` has drifted, correct it in the trust policy file and re-run
-`./infra/setup-github-oidc.sh`, which pushes the change with
-`update-assume-role-policy`.
-
-### If the first run fails on permissions
-
-`infra/github-oidc-permissions-policy.json` is scoped to this stack, this
-bucket and this hosted zone, and it was written from what the template and the
-script ask for rather than from a real run — the first deploy may still turn up
-an action it does not grant. CloudFormation names the missing action in the
-stack events, so add it and re-run. Tightening it is easier afterwards than
-guessing at it beforehand.
-
-### If you add an environment
-
-The workflow deliberately does not use a GitHub `environment:`. Adding one
-changes the OIDC subject claim to
-`repo:ramakocherlakota/wordle-luck:environment:<name>`, so the `sub` condition
-in the trust policy has to change with it or every deploy fails to assume the
-role.
-
-## Icons
-
-`public/favicon.svg` is the source of truth. After editing it, regenerate the
-raster icons — Vite copies `public/` into `dist/` as-is, so they do not rebuild
-themselves:
-
-```bash
-./infra/gen-icons.sh    # rewrites public/favicon.ico + public/apple-touch-icon.png
-```
-
-Needs headless Chrome (override the path with `CHROME=`) and ImageMagick.
-
-## Backend smoke test
-
-Confirm the backend answers and that `plausible-wordle.sqlite` is in place and
-supports non-answer guesses (run the dev server first so `/service` is proxied):
-
-```bash
-curl -s -X POST http://localhost:5173/service \
-  -H 'Content-Type: application/json' \
-  -d '{"operation":"rate_solution","targets":["crane"],"guesses":["soare","crane"],"sequence":false,"hard_mode":false,"count":1,"sqlite_dbname":"plausible-wordle.sqlite"}'
-```
-
-Expect HTTP 200 with a `by_target.crane` array of rating objects; `soare` (a
-non-answer opener) must rate without a `score_guess` error.
 
 ## Credits
 
