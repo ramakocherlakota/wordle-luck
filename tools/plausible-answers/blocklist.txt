@@ -18,3 +18,7 @@ terry tesla timon torah vardy weber wigan xerox yahoo zaire zaman
 
 # Not English words, or not words
 aller causa culpa dixit ecole fille folie hasta kinda liber ligne mille salle ville xviii
+
+# Archaic, dialect or specialist, though common enough in print for the model
+# to admit them
+doest heald sheva steen taira

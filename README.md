@@ -41,7 +41,7 @@ proxy target with `VITE_PROXY_TARGET`.
 
 The app accepts every guess the NYT game accepts (`src/data/guesses-v2.ts`,
 14,855 words) and offers as targets every word that could plausibly be the
-answer (`src/data/plausible-answers.ts`, 3,456 words; see
+answer (`src/data/plausible-answers.ts`, 3,451 words; see
 [Plausible answers](#plausible-answers-from-a-guess-list)). Luck is measured
 against that answer list, so every backend request sends
 `sqlite_dbname: "plausible-wordle.sqlite"`, the database built from exactly
@@ -258,7 +258,7 @@ python3 tools/wordle-svc-db/build_db.py \
   --out plausible-wordle.sqlite
 ```
 
-On those lists that is 3,456 answers × 14,855 guesses, 51.3M rows and 2.4 GB,
+On those lists that is 3,451 answers × 14,855 guesses, 51.3M rows and 2.4 GB,
 built in about three minutes. Its scorer agrees with `compute-scores.py`, the
 one the existing databases were built with, on every pair checked (7.2M).
 
