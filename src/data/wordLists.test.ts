@@ -22,7 +22,7 @@ describe('wordLists', () => {
     const answers = new Set(answerList);
     expect(answerWords.filter((w) => !answers.has(w))).toEqual([]);
     // Set by the NYT after the original list was made.
-    for (const w of ['geode', 'pager', 'usury', 'kefir', 'uncap']) {
+    for (const w of ['geode', 'pager', 'usury', 'kefir', 'uncap', 'yahoo']) {
       expect(answers.has(w)).toBe(true);
     }
     // Allowed guesses, but no one's idea of an answer: plurals, past tenses,

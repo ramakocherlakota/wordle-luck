@@ -6,3 +6,7 @@
 # editor might choose. Slang (gonna, sorta), names, plurals and past tenses were
 # left out.
 biker celeb chemo droid ebook forex homie kiddo pinot promo synth taser yikes
+
+# Names an editor has set anyway, so the blocklist's brands and names don't
+# keep them out.
+yahoo
