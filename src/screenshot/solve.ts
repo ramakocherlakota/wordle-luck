@@ -17,12 +17,12 @@
  * letter is corrected by the rest of the board.
  */
 
-import { patternToCode, scoreCode, SOLVED_PATTERN } from '../score';
+import { codeToPattern, scoreCode } from '../score';
 import { ALPHABET } from './glyphs';
 
 /** What the pixels said about one row. */
 export interface RowObservation {
-  /** The row's tile colors, as a `{b,w,-}` pattern. */
+  /** The row's tile colors, as a `{b,w,-}` pattern; `?` for a hidden tile. */
   pattern: string;
   /**
    * Per-position shape cost for each letter a–z (lower is a better match),
@@ -94,6 +94,29 @@ const UNRESOLVED_PENALTY = 100;
  */
 const UNLISTED_TARGET_PENALTY = 0.1;
 
+/** Every score code, 3^5 of them, as a `{b,w,-}` pattern. */
+const ALL_PATTERNS = Array.from({ length: 243 }, (_, code) =>
+  codeToPattern(code),
+);
+
+/** Which score codes a row's pattern allows: one, or more where it has a `?`. */
+function acceptedCodes(pattern: string): Uint8Array {
+  const accepts = new Uint8Array(ALL_PATTERNS.length);
+  ALL_PATTERNS.forEach((candidate, code) => {
+    let ok = true;
+    for (let i = 0; i < candidate.length && ok; i++) {
+      ok = pattern[i] === '?' || pattern[i] === candidate[i];
+    }
+    accepts[code] = ok ? 1 : 0;
+  });
+  return accepts;
+}
+
+/** The winning row: all correct, wherever its tiles can be seen. */
+function isSolved(pattern: string): boolean {
+  return /^[b?]{5}$/.test(pattern) && pattern.includes('b');
+}
+
 const LETTER_INDEX: Record<string, number> = Object.fromEntries(
   [...ALPHABET].map((letter, i) => [letter, i]),
 );
@@ -141,7 +164,7 @@ export function solveBoard(
     };
 
   const solvedRow = rows.reduce(
-    (found, row, i) => (row.pattern === SOLVED_PATTERN ? i : found),
+    (found, row, i) => (isSolved(row.pattern) ? i : found),
     -1,
   );
 
@@ -161,7 +184,7 @@ export function solveBoard(
   const constrained = rows.flatMap((row, index) =>
     index === solvedRow
       ? []
-      : [{ index, code: patternToCode(row.pattern), costs: row.costs }],
+      : [{ index, accepts: acceptedCodes(row.pattern), costs: row.costs }],
   );
 
   let best: SolvedBoard | null = null;
@@ -197,7 +220,7 @@ export function solveBoard(
     for (const word of lists.guesses) {
       const code = scoreCode(word, target);
       for (let r = 0; r < constrained.length; r++) {
-        if (constrained[r]!.code !== code) continue;
+        if (!constrained[r]!.accepts[code]) continue;
         const cost = wordCost(word, constrained[r]!.costs);
         if (cost < bestWordCost[r]!) {
           bestWordCost[r] = cost;

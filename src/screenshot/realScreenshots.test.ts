@@ -131,6 +131,9 @@ describe.each(SCREENSHOTS)('a screenshot of $theme', (shot) => {
     const result = parse(shot.file);
     expect(result.guesses).toEqual(GUESSES.slice(0, visible));
     expect(result.unresolved).toEqual([]);
+    // Nothing lies over these boards, the settings sheet included: it covers
+    // whole rows, which are simply not read.
+    expect(result.hidden).toEqual([]);
     // Without the winning row there is nothing to say what the answer was.
     expect(result.target).toBe(solved ? TARGET : '');
   });
@@ -285,6 +288,48 @@ describe('a full-screen screenshot with the browser toolbar under the board', ()
     expect(answerList).toContain(TARGET);
     expect(result.target).toBe(TARGET);
     expect(result.targetIsAnswer).toBe(true);
+  });
+});
+
+/**
+ * A fifth real game, shot the moment it was won: Wordle's "Splendid" toast
+ * sits over the middle tile of the first row. That tile's colour is the
+ * toast's black, a fourth colour on a board that can only have three, and it
+ * was merged into the nearest real one, brown for "present". `trice` then
+ * read `-bwbw` where it had scored `-b-bw`, no words could account for that,
+ * and the solver bent every other row to fit: `terce salon keech reech`.
+ *
+ * A covered tile is now read as unknown in colour and letter, and the rest of
+ * the board fills it in. Its colour follows from the words; its letter does not
+ * always, since `trice`, `trace` and `truce` all score the same against
+ * `dreck`, so the row is reported back for the user to check.
+ */
+describe('a screenshot with the win toast over the first row', () => {
+  const GAME = 'trice-salon-wreck-dreck';
+  const GUESSES = GAME.split('-');
+  const TARGET = GUESSES[GUESSES.length - 1]!;
+  const PATTERNS = GUESSES.map((guess) => scoreGuess(guess, TARGET));
+  const image = loadScreenshot(`${GAME}/high-contrast-not-dark`);
+
+  it('finds the covered tile, and only that one', () => {
+    const covered = detectBoard(image).flatMap((row, r) =>
+      row.flatMap((tile, c) => (tile.covered ? [[r, c]] : [])),
+    );
+    expect(covered).toEqual([[0, 2]]);
+  });
+
+  const result = parseBoardImage(image, { templates: TEMPLATES });
+
+  it('reads the colours, filling in the covered one from the words', () => {
+    expect(result.patterns).toEqual(PATTERNS);
+  });
+
+  it('reads every row, guessing only the covered letter', () => {
+    expect(result.target).toBe(TARGET);
+    expect(result.guesses.slice(1)).toEqual(GUESSES.slice(1));
+    expect(result.guesses[0]).toMatch(/^tr.ce$/);
+    expect(result.unresolved).toEqual([]);
+    expect(result.hidden).toEqual([0]);
   });
 });
 

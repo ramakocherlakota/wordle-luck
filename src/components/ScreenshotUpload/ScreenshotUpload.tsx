@@ -166,6 +166,14 @@ function summarize(parsed: ParsedScreenshot): string {
       `couldn't read ${parsed.unresolved.length === 1 ? 'row' : 'rows'} ${list}`,
     );
   }
+  if (parsed.hidden.length > 0) {
+    const words = parsed.hidden
+      .map((i) => `“${parsed.guesses[i]}” in row ${i + 1}`)
+      .join(', ');
+    problems.push(
+      `something was covering part of the board, so ${words} ${parsed.hidden.length === 1 ? 'is a best guess' : 'are best guesses'}`,
+    );
+  }
   const read = `Read ${rows} ${rows === 1 ? 'row' : 'rows'}`;
   return problems.length === 0
     ? `${read}. Check them below, then Submit.`

@@ -70,6 +70,7 @@ test-pix/trice-salon-whump-spine-snipe/{not-,}high-contrast-{not-,}dark.jpg
 test-pix/trice-salon-whomp-booze-evoke-geode/high-contrast-dark.jpg
 test-pix/stare-cream-pager/not-high-contrast-dark.jpg
 test-pix/trice-salon-usury/high-contrast-dark.jpg
+test-pix/trice-salon-wreck-dreck/high-contrast-not-dark.jpg
 ```
 
 The first game is there in all four dark/high-contrast combinations. The second
@@ -80,7 +81,8 @@ old lists to keep the case covered. The third has
 more present tiles than absent ones, which once got the two colours read the
 wrong way round. The fourth is a whole phone screen, browser chrome and all, and
 is there for Safari's bottom toolbar, whose round buttons are tile-shaped enough
-to have been read as a seventh row.
+to have been read as a seventh row. The fifth was shot the moment the game was
+won, with Wordle's "Splendid" toast over a tile of the first row.
 
 `realScreenshots.test.ts` derives what it expects from the directory name and
 the scoring rules, so adding a game is a matter of dropping in the directory and
@@ -148,6 +150,12 @@ Known limits:
 - **An unfinished game** has no all-correct row, so nothing pins down which
   color is which; the guesses are filled from shapes alone and the target is
   left blank. The same applies if something covers the winning row.
+- **A tile partly covered** (by the "Splendid" toast Wordle shows on a win,
+  say) is read as unknown, and the rest of the board fills it in. Its colour
+  always follows, but its letter is only a best guess when more than one word
+  fits (`trice`, `trace` and `truce` score alike against `dreck`), so the
+  summary names that word for you to check. A tile covered completely, corner
+  to corner, is not noticed.
 - **An answer outside the bundled list** (a word Wordle sets that the
   plausible-answer list missed) is read off the board like any other
   word, and the guesses fill in as usual — but it can't be offered in the target

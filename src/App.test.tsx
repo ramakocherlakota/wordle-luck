@@ -27,6 +27,7 @@ async function uploadScreenshot(
 ) {
   (parseScreenshot as Mock).mockResolvedValue({
     targetIsAnswer: true,
+    hidden: [],
     ...board,
     unresolved: [],
   });

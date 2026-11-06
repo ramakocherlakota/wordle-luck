@@ -25,6 +25,12 @@ export interface Tile {
   y1: number;
   /** Mean fill colour, which `palette.ts` later maps to a score symbol. */
   rgb: [number, number, number];
+  /**
+   * Something lies over part of the tile — the "Splendid" toast Wordle shows on
+   * a win sits right on the top row — so neither its colour nor its letter can
+   * be trusted. The solver fills it in from the rest of the board.
+   */
+  covered?: boolean;
 }
 
 /** Wordle is always five letters wide. */
@@ -489,8 +495,46 @@ export function detectBoard(source: RgbaImage): Tile[][] {
         x1: Math.round(x + half),
         y1: Math.round(y + half),
       };
-      return { ...box, rgb: sampleFill(source, box) };
+      return {
+        ...box,
+        rgb: sampleFill(source, box),
+        covered: isCovered(source, box),
+      };
     }),
+  );
+}
+
+/** Corners further apart than this, by `colorDistance`, are not one fill. */
+const COVER_TOLERANCE = 40;
+
+/**
+ * Whether something partly hides a cell. A tile is one flat fill with its
+ * letter in the middle, so its four corners agree, played or not. A toast or a
+ * sheet over part of it shows as corners that do not: the toast that covers
+ * the top row on a win is black above and the tile's own grey below.
+ */
+function isCovered(
+  img: RgbaImage,
+  box: { x0: number; y0: number; x1: number; y1: number },
+): boolean {
+  const size = box.x1 - box.x0 + 1;
+  // Inside the tile's border, and well clear of the letter.
+  const inset = Math.round(size * 0.12);
+  const patch = Math.max(1, Math.round(size * 0.06));
+  const left = box.x0 + inset;
+  const right = box.x1 - inset - patch;
+  const top = box.y0 + inset;
+  const bottom = box.y1 - inset - patch;
+  const corners = [
+    [left, top],
+    [right, top],
+    [left, bottom],
+    [right, bottom],
+  ].map(([x, y]) =>
+    sampleFill(img, { x0: x!, y0: y!, x1: x! + patch, y1: y! + patch }),
+  );
+  return corners.some((a) =>
+    corners.some((b) => colorDistance(a, b) > COVER_TOLERANCE),
   );
 }
 

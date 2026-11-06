@@ -26,6 +26,7 @@ const PARSED: ParsedScreenshot = {
   unresolved: [],
   cost: 0,
   patterns: ['w--w-', 'bbbbb'],
+  hidden: [],
 };
 
 function imageFile(name = 'wordle.png') {
@@ -60,6 +61,21 @@ describe('ScreenshotUpload', () => {
     expect(onParsed).toHaveBeenCalledWith(PARSED);
     expect(await screen.findByRole('status')).toHaveTextContent(
       /read 2 rows.*then submit/i,
+    );
+  });
+
+  it('says which words were read past something covering the board', async () => {
+    parseMock.mockResolvedValue({
+      ...PARSED,
+      guesses: ['trace', 'crane'],
+      hidden: [0],
+    });
+    render(<ScreenshotUpload onParsed={vi.fn()} />);
+
+    await upload(imageFile());
+
+    expect(await screen.findByRole('status')).toHaveTextContent(
+      /covering part of the board, so “trace” in row 1 is a best guess/i,
     );
   });
 

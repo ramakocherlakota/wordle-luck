@@ -15,11 +15,19 @@ import {
 } from './glyphs';
 import { candidatePatterns } from './palette';
 import { decodeImageFile, type RgbaImage } from './image';
+import { scoreGuess } from '../score';
 import { solveBoard, type SolvedBoard, type WordLists } from './solve';
 
 export interface ParsedScreenshot extends SolvedBoard {
   /** Detected tile colours per row, as `{b,w,-}` patterns (for the preview). */
   patterns: string[];
+  /**
+   * Rows read with a tile hidden under something, such as the toast Wordle
+   * shows on a win. The rest of the board decides that tile's colour, but its
+   * letter is a guess whenever more than one word fits, so the caller should
+   * ask for a check.
+   */
+  hidden: number[];
 }
 
 /** A failure with a message worth showing the user as-is. */
@@ -43,13 +51,17 @@ export interface ParseOptions {
   templates?: LetterTemplates;
 }
 
-/** Read each tile's letter shape; `null` for a tile with nothing on it. */
+/**
+ * Read each tile's letter shape; `null` for a tile with nothing on it, or with
+ * something over it (whose "letter" would be the toast's text).
+ */
 function readRow(
   image: RgbaImage,
   row: Tile[],
   templates: LetterTemplates,
 ): (Float32Array | null)[] {
   return row.map((tile) => {
+    if (tile.covered) return null;
     const glyph = extractGlyph(image, tile);
     return glyph ? letterCosts(glyph, templates) : null;
   });
@@ -58,7 +70,11 @@ function readRow(
 /** Fall back to reading the palette by hue, for a board with no solved row. */
 function patternsByHue(rows: Tile[][]): string[] {
   return rows.map((row) =>
-    row.map((tile) => classifyTileColor(...tile.rgb) ?? '-').join(''),
+    row
+      .map((tile) =>
+        tile.covered ? '?' : (classifyTileColor(...tile.rgb) ?? '-'),
+      )
+      .join(''),
   );
 }
 
@@ -104,7 +120,7 @@ export function parseBoardImage(
       patterns.map((pattern, i) => ({ pattern, costs: costs[i]! })),
       lists,
     );
-    const candidate = { ...solved, patterns };
+    const candidate = { ...solved, patterns, hidden: [] };
     if (
       best === null ||
       candidate.unresolved.length < best.unresolved.length ||
@@ -115,7 +131,20 @@ export function parseBoardImage(
     }
   }
 
-  return best!;
+  // A covered tile's colour follows from the words either side of it, once
+  // they are known.
+  const { target, guesses, unresolved } = best!;
+  return {
+    ...best!,
+    hidden: rows.flatMap((row, i) =>
+      row.some((tile) => tile.covered) && !unresolved.includes(i) ? [i] : [],
+    ),
+    patterns: best!.patterns.map((pattern, i) =>
+      pattern.includes('?') && target && guesses[i]
+        ? scoreGuess(guesses[i]!, target)
+        : pattern,
+    ),
+  };
 }
 
 /** Parse an uploaded image file. */

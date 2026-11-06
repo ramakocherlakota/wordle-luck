@@ -23,7 +23,7 @@ const CLUSTER_TOLERANCE = 40;
 export interface ColorGroups {
   /** Mean colour of each group. */
   colors: [number, number, number][];
-  /** Group index per tile, row by row. */
+  /** Group index per tile, row by row; -1 for a covered tile. */
   groupOf: number[][];
 }
 
@@ -41,6 +41,8 @@ export function groupColors(rows: Tile[][]): ColorGroups {
 
   const groupOf = rows.map((row) =>
     row.map((tile) => {
+      // Its colour is whatever is on top of it, so it joins no group.
+      if (tile.covered) return -1;
       let best = -1;
       let bestDistance = Infinity;
       for (let i = 0; i < colors.length; i++) {
@@ -103,13 +105,14 @@ function mergeDownToThree(groups: ColorGroups, counts: number[]): ColorGroups {
   return {
     colors: kept.map((i) => colors[i]!),
     groupOf: groups.groupOf.map((row) =>
-      row.map((g) => index.get(remap[g]!) ?? 0),
+      row.map((g) => (g < 0 ? -1 : (index.get(remap[g]!) ?? 0))),
     ),
   };
 }
 
 /**
- * Every reading of the board worth trying, as one `{b,w,-}` pattern per row.
+ * Every reading of the board worth trying, as one `{b,w,-}` pattern per row,
+ * with `?` for a covered tile.
  *
  * A solved game's last row is all one colour, which fixes "correct"; the
  * remaining colours could go either way, so both orders are returned for the
@@ -120,16 +123,18 @@ export function candidatePatterns(rows: Tile[][]): string[][] {
   if (rows.length === 0) return [];
   const { colors, groupOf } = groupColors(rows);
 
-  const lastRow = groupOf[groupOf.length - 1]!;
-  const correct = lastRow[0]!;
-  if (!lastRow.every((g) => g === correct)) return [];
+  // Covered tiles say nothing either way, so the winning row only has to be
+  // one colour where it can be seen.
+  const lastRow = groupOf[groupOf.length - 1]!.filter((g) => g >= 0);
+  const correct = lastRow[0];
+  if (correct === undefined || !lastRow.every((g) => g === correct)) return [];
 
   // Absent is the commoner colour on most Wordle boards, so offer the rarer of
   // the two as "present" first. Only an ordering: the caller solves every
   // reading and compares them, so a yellow-heavy board loses nothing by it.
   const tally = new Map<number, number>();
   for (const row of groupOf) {
-    for (const g of row) tally.set(g, (tally.get(g) ?? 0) + 1);
+    for (const g of row) if (g >= 0) tally.set(g, (tally.get(g) ?? 0) + 1);
   }
   const others = colors
     .map((_, i) => i)
@@ -149,7 +154,9 @@ export function candidatePatterns(rows: Tile[][]): string[][] {
   return orders.map((present) =>
     groupOf.map((row) =>
       row
-        .map((g) => (g === correct ? 'b' : g === present ? 'w' : '-'))
+        .map((g) =>
+          g < 0 ? '?' : g === correct ? 'b' : g === present ? 'w' : '-',
+        )
         .join(''),
     ),
   );
