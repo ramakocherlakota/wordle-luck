@@ -433,6 +433,22 @@ an action it does not grant. CloudFormation names the missing action in the
 stack events, so add it and re-run. Tightening it is easier afterwards than
 guessing at it beforehand.
 
+### Calling `/service` from other sites
+
+The site itself is same-origin and needs no CORS, but `/service` also answers
+browser calls from the origins in the template's `ServiceCorsPolicy`, so other
+apps can use the same service and word lists. Today that is
+`https://ramakocherlakota.github.io`, for Word Guess's "How lucky was I?" button
+([amd-apps](https://github.com/ramakocherlakota/amd-apps)), which keeps its
+five-letter lists in step with `src/data/plausible-answers.ts` and
+`src/data/guesses-v2.ts`. To allow another origin, add it to that policy's
+`AccessControlAllowOrigins` and deploy.
+
+The policy needed four more CloudFront actions in
+`infra/github-oidc-permissions-policy.json` (`Create/Get/Update/DeleteResponseHeadersPolicy`).
+Re-run `./infra/setup-github-oidc.sh` once to apply them to the deploy role, or
+the next workflow deploy fails on them.
+
 ### If you add an environment
 
 The workflow deliberately does not use a GitHub `environment:`. Adding one

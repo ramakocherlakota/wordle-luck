@@ -133,6 +133,34 @@ Resources:
           return request;
         }
 
+  # Lets pages on the origins listed below call /service from the browser, so
+  # other apps can use the same service and word lists as this one. Today that is
+  # Word Guess (ramakocherlakota/amd-apps, served from GitHub Pages), whose "How
+  # lucky was I?" button rates a game here. This site itself is same-origin and
+  # needs none of it. OriginOverride makes CloudFront's headers authoritative over
+  # anything the Lambda might add, and the CORS preflight (OPTIONS) is forwarded to
+  # the Lambda, which answers it 200, so the policy's headers ride on that reply.
+  ServiceCorsPolicy:
+    Type: AWS::CloudFront::ResponseHeadersPolicy
+    Properties:
+      ResponseHeadersPolicyConfig:
+        Name: !Sub '${AWS::StackName}-service-cors'
+        Comment: CORS for /service, for apps on other origins.
+        CorsConfig:
+          AccessControlAllowOrigins:
+            Items:
+              - https://ramakocherlakota.github.io
+          AccessControlAllowHeaders:
+            Items:
+              - content-type
+          AccessControlAllowMethods:
+            Items:
+              - POST
+              - OPTIONS
+          AccessControlAllowCredentials: false
+          AccessControlMaxAgeSec: 86400
+          OriginOverride: true
+
   Distribution:
     Type: AWS::CloudFront::Distribution
     Properties:
@@ -186,6 +214,7 @@ Resources:
             CachePolicyId: !FindInMap [CloudFrontManagedPolicies, Cache, Disabled]
             # Forwards everything except Host, which must stay the Lambda's own.
             OriginRequestPolicyId: !FindInMap [CloudFrontManagedPolicies, OriginRequest, AllViewerExceptHostHeader]
+            ResponseHeadersPolicyId: !Ref ServiceCorsPolicy
             FunctionAssociations:
               - EventType: viewer-request
                 FunctionARN: !GetAtt ServiceRewriteFunction.FunctionARN

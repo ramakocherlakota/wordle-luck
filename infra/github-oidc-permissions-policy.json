@@ -67,6 +67,10 @@
         "cloudfront:GetFunction",
         "cloudfront:UpdateFunction",
         "cloudfront:PublishFunction",
+        "cloudfront:CreateResponseHeadersPolicy",
+        "cloudfront:GetResponseHeadersPolicy",
+        "cloudfront:UpdateResponseHeadersPolicy",
+        "cloudfront:DeleteResponseHeadersPolicy",
         "cloudfront:CreateInvalidation",
         "cloudfront:GetInvalidation"
       ],
